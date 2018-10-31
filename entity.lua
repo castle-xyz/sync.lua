@@ -73,10 +73,11 @@ end
 -- Initialization
 
 function Common:init(props)
-    self.allById = {} -- `t[ent.__id] = ent` for all alive entities sync'd with us
-    self.needsSend = {} -- `t[ent.__id] = ent` for entities whose sync we need to send
-    self.receivedSyncs = {} -- `t[sync.__id] = sync` for received syncs pending apply
-    self.owned = {} -- `t[ent] = ent` for entities we own
+    -- Each of these tables is a 'set' of the form `t[k.__id] = k` for all `k` in the set
+    self.all = {} -- Entities we can read (includes owned)
+    self.owned = {} -- Entities we own
+    self.needsSend = {} -- Entities whose sync we need to send
+    self.receivedSyncs = {} -- Received syncs pending apply
 end
 
 function Server:init(props)
@@ -126,8 +127,8 @@ function Server:spawn(typeName, props)
     ent.__id = genId()
     ent.__mgr = self
 
-    self.allById[ent.__id] = ent
-    self.owned[ent] = true
+    self.all[ent.__id] = ent
+    self.owned[ent.__id] = ent
 
     if ent.didSpawn then
         ent:didSpawn(props)
@@ -179,13 +180,13 @@ end
 
 function Common:applyReceivedSyncs()
     local syncedEnts = {}
-    for id, sync in pairs(self.receivedSyncs) do
+    for _, sync in pairs(self.receivedSyncs) do
         -- TODO(nikki): Dequeue
-        local ent = self.allById[sync.__id]
+        local ent = self.all[sync.__id]
         if not ent then
             ent = actuallyConstruct(typeIdToName[sync.__typeId])
             ent.__mgr = self
-            self.allById[sync.__id] = ent
+            self.all[sync.__id] = ent
         end
         if ent.willSync then
             ent:willSync(sync)
@@ -233,7 +234,7 @@ function Client:process()
 end
 
 function Server:didConnect(peer)
-    self:sendSyncs(nil, peer, self.allById)
+    self:sendSyncs(nil, peer, self.all)
 end
 
 function Client:didConnect()

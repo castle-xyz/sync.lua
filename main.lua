@@ -29,10 +29,10 @@ function love.update(dt)
     if server then
         server:process()
 
-        for ent in pairs(server.owned) do
-            ent:update(dt)
-            server:sync(ent)
-        end
+--        for id, ent in pairs(server.owned) do
+--            ent:update(dt)
+--            server:sync(ent)
+--        end
     end
     if client then
         client:process()
@@ -59,7 +59,7 @@ function love.draw()
     if client then
         love.graphics.print('client ' .. client.serverPeer:state(), 20, 20)
 
-        for id, ent in pairs(client.allById) do
+        for id, ent in pairs(client.all) do
             ent:draw()
         end
     else
