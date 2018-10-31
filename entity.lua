@@ -74,8 +74,7 @@ end
 
 function Common:init(props)
     -- Each of these tables is a 'set' of the form `t[k.__id] = k` for all `k` in the set
-    self.all = {} -- Entities we can read (includes owned)
-    self.owned = {} -- Entities we own
+    self.all = {} -- Entities we can read
     self.needsSend = {} -- Entities whose sync we need to send
     self.receivedSyncs = {} -- Received syncs pending apply
 end
@@ -83,14 +82,18 @@ end
 function Server:init(props)
     Common.init(self)
 
+    assert(props.controllerTypeName, "server needs `props.controllerTypeName`")
+
     self.serverHost = enet.host_create(props.address or '*:22122')
+    self.serverController = self:spawn(props.controllerTypeName)
 end
 
 function Client:init(props)
     Common.init(self)
 
-    self.clientHost = enet.host_create()
     assert(props.address, "client needs `props.address` to connect to")
+
+    self.clientHost = enet.host_create()
     self.serverPeer = self.clientHost:connect(props.address)
 end
 
@@ -130,7 +133,6 @@ function Server:spawn(typeName, props)
     ent.__mgr = self
 
     self.all[ent.__id] = ent
-    self.owned[ent.__id] = ent
 
     if ent.didSpawn then
         ent:didSpawn(props)
@@ -140,25 +142,25 @@ function Server:spawn(typeName, props)
     return ent
 end
 
-defRpc('requestSpawn')
-function Server:requestSpawn(peer, typeName, props)
-    props = props or {}
-    props.__clientId = peer:connect_id()
-    self:spawn(typeName, props)
-end
-
-function Client:spawn(typeName, props)
-    self.serverPeer:send(rpcToData('requestSpawn', typeName, props))
-end
+--defRpc('requestSpawn')
+--function Server:requestSpawn(peer, typeName, props)
+--    props = props or {}
+--    props.__clientId = peer:connect_id()
+--    self:spawn(typeName, props)
+--end
+--
+--function Client:spawn(typeName, props)
+--    self.serverPeer:send(rpcToData('requestSpawn', typeName, props))
+--end
 
 
 -- Sync
 
-function Common:sync(ent)
+function Server:sync(ent)
     self.needsSend[ent.__id] = ent
 end
 
-function Common:sendSyncs(host, peer, toSend)
+function Server:sendSyncs(host, peer, toSend)
     for _, ent in pairs(toSend) do
         ent.__mgr = nil
     end
@@ -219,6 +221,8 @@ function Common:receiveRpcs(host)
             self:callRpc(event.peer, dataToRpc(event.data))
         elseif event.type == 'connect' then
             self:didConnect(event.peer)
+        elseif event.type == 'disconnect' then
+            self:didDisconnect(event.peer)
         end
     end
 end
@@ -237,10 +241,22 @@ function Client:process()
 end
 
 function Server:didConnect(peer)
+    if self.serverController.didConnect then
+        self.serverController:didConnect(peer:connect_id())
+    end
     self:sendSyncs(nil, peer, self.all)
 end
 
 function Client:didConnect()
+end
+
+function Server:didDisconnect(peer)
+    if self.serverController.didDisconnect then
+        self.serverController:didDisconnect(peer:connect_id())
+    end
+end
+
+function Client:didDisconnect()
 end
 
 

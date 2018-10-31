@@ -43,13 +43,18 @@ function Player:draw()
 end
 
 function Player:update(dt)
-    self.x = self.x + 20 * dt
-
     self.gun.x, self.gun.y = self:_gunPos()
 end
 
 function Player:_gunPos()
     return self.x + 10, self.y - 10
+end
+
+
+local Controller = entity.registerType('Controller')
+
+function Controller:didConnect(clientId)
+    self.__mgr:spawn('Player')
 end
 
 
@@ -61,7 +66,7 @@ local clients = {}
 
 function love.update(dt)
     if server then
-        for id, ent in pairs(server.owned) do
+        for id, ent in pairs(server.all) do
             if ent.update then
                 ent:update(dt)
             end
@@ -78,19 +83,15 @@ end
 
 function love.keypressed(k)
     if k == 's' then
-        server = entity.newServer { address = '*:22122' }
+        server = entity.newServer {
+            address = '*:22122',
+            controllerTypeName = 'Controller',
+        }
     end
     if k == 'c' then
         for i = 1, 4 do
             clients[i] = entity.newClient { address = '10.0.1.39:22122' }
         end
-    end
-
-    if k == 'i' then
-        clients[1]:spawn('Player')
-    end
-    if k == 'o' then
-        clients[2]:spawn('Player')
     end
 end
 
