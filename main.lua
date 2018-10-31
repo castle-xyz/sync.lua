@@ -40,12 +40,12 @@ local clients = {}
 
 function love.update(dt)
     if server then
-        server:process()
-
         for id, ent in pairs(server.owned) do
             ent:update(dt)
             server:sync(ent)
         end
+
+        server:process()
     end
 
     for _, client in pairs(clients) do
@@ -59,7 +59,7 @@ function love.keypressed(k)
     end
     if k == 'c' then
         for i = 1, 4 do
-            clients[i] = entity.newClient { address = '10.0.1.39:22122' }
+            clients[i] = entity.newClient { address = '172.20.10.3:22122' }
         end
     end
 
