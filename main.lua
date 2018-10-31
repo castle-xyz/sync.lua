@@ -15,6 +15,12 @@ function Player:draw()
     love.graphics.ellipse('fill', self.x, self.y, 20, 20)
 end
 
+function Player:update(dt)
+    self.x = self.x + 20 * dt
+end
+
+
+
 
 local server, client
 
@@ -22,6 +28,11 @@ local server, client
 function love.update(dt)
     if server then
         server:update(dt)
+
+        for ent in pairs(server.owned) do
+            ent:update(dt)
+            server:sync(ent)
+        end
     end
     if client then
         client:update(dt)
