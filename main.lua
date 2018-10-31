@@ -16,16 +16,26 @@ function Player:draw()
 end
 
 
-local server = entity.newServer { address = '*:22122' }
-local client = entity.newClient { address = '192.168.1.80:22122' }
+local server, client
 
 
 function love.update(dt)
-    server:update(dt)
-    client:update(dt)
+    if server then
+        server:update(dt)
+    end
+    if client then
+        client:update(dt)
+    end
 end
 
 function love.keypressed(k)
+    if k == 's' then
+        server = entity.newServer { address = '*:22122' }
+    end
+    if k == 'c' then
+        client = entity.newClient { address = '192.168.1.80:22122' }
+    end
+
     if k == 'p' then
         client:spawn('Player', {
             x = math.random() * love.graphics.getWidth(),
@@ -35,7 +45,13 @@ function love.keypressed(k)
 end
 
 function love.draw()
-    for id, ent in pairs(client.allById) do
-        ent:draw()
+    if client then
+        love.graphics.print('client ' .. client.serverPeer:state(), 20, 20)
+
+        for id, ent in pairs(client.allById) do
+            ent:draw()
+        end
+    else
+        love.graphics.print('no client', 20, 20)
     end
 end
