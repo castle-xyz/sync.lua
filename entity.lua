@@ -84,7 +84,7 @@ function Server:init(props)
 
     assert(props.controllerTypeName, "server needs `props.controllerTypeName`")
 
-    self.serverHost = enet.host_create(props.address or '*:22122')
+    self.host = enet.host_create(props.address or '*:22122')
     self.serverController = self:spawn(props.controllerTypeName)
 end
 
@@ -93,8 +93,8 @@ function Client:init(props)
 
     assert(props.address, "client needs `props.address` to connect to")
 
-    self.clientHost = enet.host_create()
-    self.serverPeer = self.clientHost:connect(props.address)
+    self.host = enet.host_create()
+    self.serverPeer = self.host:connect(props.address)
 end
 
 
@@ -160,18 +160,19 @@ function Server:sync(ent)
     self.needsSend[ent.__id] = ent
 end
 
-function Server:sendSyncs(host, peer, toSend)
-    for _, ent in pairs(toSend) do
+function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all connected peers
+    for _, ent in pairs(syncs) do
         ent.__mgr = nil
     end
-    local data = rpcToData('receiveSyncs', toSend) -- TODO(nikki): Convert
+    local data = rpcToData('receiveSyncs', syncs) -- TODO(nikki): Convert
+    for _, ent in pairs(syncs) do
+        ent.__mgr = self
+    end
+
     if peer then
         peer:send(data)
     else
-        host:broadcast(data)
-    end
-    for _, ent in pairs(toSend) do
-        ent.__mgr = self
+        self.host:broadcast(data)
     end
 end
 
@@ -210,41 +211,13 @@ function Common:applyReceivedSyncs()
 end
 
 
--- Updating
-
-function Common:receiveRpcs(host)
-    while true do
-        local event = host:service(0)
-        if not event then break end
-
-        if event.type == 'receive' then
-            self:callRpc(event.peer, dataToRpc(event.data))
-        elseif event.type == 'connect' then
-            self:didConnect(event.peer)
-        elseif event.type == 'disconnect' then
-            self:didDisconnect(event.peer)
-        end
-    end
-end
-
-function Server:process()
-    self:sendSyncs(self.serverHost, nil, self.needsSend)
-    self.needsSend = {}
-
-    self:receiveRpcs(self.serverHost)
-end
-
-function Client:process()
-    self:receiveRpcs(self.clientHost)
-
-    self:applyReceivedSyncs()
-end
+-- Connection / disconnection
 
 function Server:didConnect(peer)
     if self.serverController.didConnect then
         self.serverController:didConnect(peer:connect_id())
     end
-    self:sendSyncs(nil, peer, self.all)
+    self:sendSyncs(peer, self.all)
 end
 
 function Client:didConnect()
@@ -257,6 +230,37 @@ function Server:didDisconnect(peer)
 end
 
 function Client:didDisconnect()
+end
+
+
+-- Top-level process
+
+function Common:process()
+    while true do
+        local event = self.host:service(0)
+        if not event then break end
+
+        if event.type == 'receive' then
+            self:callRpc(event.peer, dataToRpc(event.data))
+        elseif event.type == 'connect' then
+            self:didConnect(event.peer)
+        elseif event.type == 'disconnect' then
+            self:didDisconnect(event.peer)
+        end
+    end
+
+    self:processSyncs()
+
+    self.host:flush()
+end
+
+function Server:processSyncs()
+    self:sendSyncs(nil, self.needsSend)
+    self.needsSend = {}
+end
+
+function Client:processSyncs()
+    self:applyReceivedSyncs()
 end
 
 
