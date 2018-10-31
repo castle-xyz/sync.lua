@@ -12,12 +12,18 @@ end
 
 -- Types
 
-local typesByName = {}
+local typesByName, typeIdToName = {}, {}
 
 function entity.registerType(typeName, ty)
+    assert(not typesByName[typeName])
+
     ty = ty or {}
     ty.__typeName = typeName
     typesByName[typeName] = ty
+
+    table.insert(typeIdToName, typeName)
+    ty.__typeId = #typeIdToName
+
     return ty
 end
 
@@ -31,6 +37,7 @@ local function actuallyConstruct(typeName, props)
         ty.__index = ty
         ent = setmetatable({}, ty)
     end
+    ent.__typeId = ty.__typeId
 
     if ent.onConstruct then -- `onConstruct` event
         ent:onConstruct(props)
@@ -66,7 +73,10 @@ end
 -- Initialization
 
 function Common:init(props)
-    self.entitiesById = {}
+    self.allById = {} -- `self.allById[ent] = ent.__id` for all entities
+    self.needsSend = {} -- `self.needsSend[ent] = ent` for entities we need to send
+    self.received = {} -- `self.received[newEnt.__id] = newEnt` for entities we received updates for
+    self.owned = {} -- Indexed by instance
 end
 
 function Server:init(props)
@@ -116,13 +126,22 @@ function Server:spawn(typeName, props)
     ent.__id = genId()
     ent.__mgr = self
 
-    -- Add to map, `didSpawn` event
-    self.entitiesById[ent.__id] = ent
+    self.allById[ent.__id] = ent
+    self.owned[ent] = true
+
+    local needsSend
     if ent.didSpawn then
-        ent:didSpawn(props)
+        needsSend = ent:didSpawn(props)
+    end
+    if needsSend ~= false then
+        self:sync(ent)
     end
 
-    -- TODO(nikki): Send
+--    -- Broadcast to clients
+--    ent.__mgr = nil
+--    local data = bitser.dumps(ent)
+--    ent.__mgr = self
+--    self.serverHost:broadcast(rpcToData('didSpawn', typeName, data))
 
     return ent
 end
@@ -137,10 +156,57 @@ function Client:spawn(typeName, props)
     self.serverPeer:send(rpcToData('requestSpawn', typeName, props))
 end
 
+--defRpc('didSpawn')
+--function Client:didSpawn(peer, typeName, props)
+--    -- TODO(nikki): Validate
+--    self:spawn(typeName, props)
+--end
+
+
+-- Sync
+
+function Common:sync(ent)
+    self.needsSend[ent] = ent
+end
+
+defRpc('receiveSync')
+function Client:receiveSync(peer, newEnts)
+    for newEnt in pairs(newEnts) do
+        -- TODO(nikki): Merge
+        self.received[newEnt.__id] = newEnt
+    end
+end
+
+function Common:flushSend(host)
+    for ent in pairs(self.needsSend) do
+        ent.__mgr = nil
+    end
+    host:broadcast(rpcToData('receiveSync', self.needsSend))
+    for ent in pairs(self.needsSend) do
+        ent.__mgr = self
+    end
+    self.needsSend = {}
+end
+
+function Common:flushReceive()
+    for id, newEnt in pairs(self.received) do
+        -- TODO(nikki): Merge
+        local ent = self.allById[newEnt.__id]
+        if not ent then
+            ent = actuallyConstruct(typeIdToName[newEnt.__typeId])
+            ent.__mgr = self
+            self.allById[newEnt.__id] = ent
+        end
+        for k, v in pairs(newEnt) do
+            ent[k] = v
+        end
+    end
+end
+
 
 -- Updating
 
-function Common:serviceRpcs(host)
+function Common:serviceHost(host)
     while true do
         local event = host:service(0)
         if not event then break end
@@ -152,11 +218,13 @@ function Common:serviceRpcs(host)
 end
 
 function Server:update(dt)
-    self:serviceRpcs(self.serverHost)
+    self:flushSend(self.serverHost)
+    self:serviceHost(self.serverHost)
 end
 
 function Client:update(dt)
-    self:serviceRpcs(self.clientHost)
+    self:serviceHost(self.clientHost)
+    self:flushReceive()
 end
 
 
