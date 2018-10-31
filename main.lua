@@ -4,31 +4,52 @@ local W, H = 0.5 * love.graphics.getWidth(), 0.5 * love.graphics.getHeight()
 
 
 
+local Gun = entity.registerType('Gun')
+
+Gun.depth = 200
+
+function Gun:didSpawn(props)
+    self.x, self.y = props.x, props.y
+
+    self.r, self.g, self.b = math.random(), math.random(), math.random()
+end
+
+function Gun:draw()
+    love.graphics.push('all')
+    love.graphics.setColor(self.r, self.g, self.b)
+    love.graphics.rectangle('fill', self.x, self.y, 15, 15)
+    love.graphics.pop()
+end
+
+
 local Player = entity.registerType('Player')
 
-local colors = {}
+Player.depth = 100
 
 function Player:didSpawn(props)
-    self.x = W * math.random()
-    self.y = H * math.random()
+    self.x, self.y = W * math.random(), H * math.random()
 
-    colors[props.__clientId] = colors[props.__clientId] or {
-        r = math.random(),
-        g = math.random(),
-        b = math.random(),
-    }
-    self.color = colors[props.__clientId]
+    self.r, self.g, self.b = math.random(), math.random(), math.random()
+
+    local gunX, gunY = self:_gunPos()
+    self.gun = self.__mgr:spawn('Gun', { x = gunX, y = gunY })
 end
 
 function Player:draw()
     love.graphics.push('all')
-    love.graphics.setColor(self.color.r, self.color.g, self.color.b)
-    love.graphics.ellipse('fill', self.x, self.y, 20, 20)
+    love.graphics.setColor(self.r, self.g, self.b)
+    love.graphics.ellipse('fill', self.x, self.y, 40, 40)
     love.graphics.pop()
 end
 
 function Player:update(dt)
     self.x = self.x + 20 * dt
+
+    self.gun.x, self.gun.y = self:_gunPos()
+end
+
+function Player:_gunPos()
+    return self.x + 10, self.y - 10
 end
 
 
@@ -41,7 +62,9 @@ local clients = {}
 function love.update(dt)
     if server then
         for id, ent in pairs(server.owned) do
-            ent:update(dt)
+            if ent.update then
+                ent:update(dt)
+            end
             server:sync(ent)
         end
 
@@ -59,15 +82,15 @@ function love.keypressed(k)
     end
     if k == 'c' then
         for i = 1, 4 do
-            clients[i] = entity.newClient { address = '172.20.10.3:22122' }
+            clients[i] = entity.newClient { address = '10.0.1.39:22122' }
         end
     end
 
     if k == 'i' then
-        clients[1]:spawn('Player', { })
+        clients[1]:spawn('Player')
     end
     if k == 'o' then
-        clients[2]:spawn('Player', { })
+        clients[2]:spawn('Player')
     end
 end
 
@@ -82,7 +105,16 @@ function love.draw()
         love.graphics.setScissor(dx, dy, W, H)
         love.graphics.print('client ' .. client.serverPeer:state(), 20, 20)
 
+        local drawOrder = {}
         for id, ent in pairs(client.all) do
+            if ent.draw then
+                table.insert(drawOrder, ent)
+            end
+        end
+        table.sort(drawOrder, function(e1, e2)
+            return e1.depth < e2.depth
+        end)
+        for _, ent in ipairs(drawOrder) do
             ent:draw()
         end
 

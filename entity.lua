@@ -123,6 +123,8 @@ end
 -- Spawning
 
 function Server:spawn(typeName, props)
+    props = props or {}
+
     local ent = actuallyConstruct(typeName, props)
     ent.__id = genId()
     ent.__mgr = self
@@ -140,6 +142,7 @@ end
 
 defRpc('requestSpawn')
 function Server:requestSpawn(peer, typeName, props)
+    props = props or {}
     props.__clientId = peer:connect_id()
     self:spawn(typeName, props)
 end
