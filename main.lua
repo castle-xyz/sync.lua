@@ -53,7 +53,7 @@ end
 
 local Controller = entity.registerType('Controller')
 
-function Controller:didConnect(clientId)
+function Controller:didSpawn(props)
     self.__mgr:spawn('Player')
 end
 

@@ -82,10 +82,11 @@ end
 function Server:init(props)
     Common.init(self)
 
-    assert(props.controllerTypeName, "server needs `props.controllerTypeName`")
+    self.controllerTypeName = assert(props.controllerTypeName,
+        "server needs `props.controllerTypeName`")
 
     self.host = enet.host_create(props.address or '*:22122')
-    self.serverController = self:spawn(props.controllerTypeName)
+    self.controllers = {}
 end
 
 function Client:init(props)
@@ -214,9 +215,11 @@ end
 -- Connection / disconnection
 
 function Server:didConnect(peer)
-    if self.serverController.didConnect then
-        self.serverController:didConnect(peer:connect_id())
-    end
+    local clientId = peer:connect_id()
+    assert(not self.controllers[clientId], "`clientId` clash")
+    self.controllers[clientId] = self:spawn(self.controllerTypeName, {
+        __clientId = clientId,
+    })
     self:sendSyncs(peer, self.all)
 end
 
@@ -224,9 +227,9 @@ function Client:didConnect()
 end
 
 function Server:didDisconnect(peer)
-    if self.serverController.didDisconnect then
-        self.serverController:didDisconnect(peer:connect_id())
-    end
+    local clientId = peer:connect_id()
+    assert(self.controllers[clientId], "no controller for this `clientId`")
+    -- TODO(nikki): Despawn
 end
 
 function Client:didDisconnect()
