@@ -140,7 +140,7 @@ end
 
 defRpc('requestSpawn')
 function Server:requestSpawn(peer, typeName, props)
-    -- TODO(nikki): Validate
+    props.__clientId = peer:connect_id()
     self:spawn(typeName, props)
 end
 

@@ -6,13 +6,25 @@ local W, H = 0.5 * love.graphics.getWidth(), 0.5 * love.graphics.getHeight()
 
 local Player = entity.registerType('Player')
 
+local colors = {}
+
 function Player:didSpawn(props)
     self.x = W * math.random()
     self.y = H * math.random()
+
+    colors[props.__clientId] = colors[props.__clientId] or {
+        r = math.random(),
+        g = math.random(),
+        b = math.random(),
+    }
+    self.color = colors[props.__clientId]
 end
 
 function Player:draw()
+    love.graphics.push('all')
+    love.graphics.setColor(self.color.r, self.color.g, self.color.b)
     love.graphics.ellipse('fill', self.x, self.y, 20, 20)
+    love.graphics.pop()
 end
 
 function Player:update(dt)
