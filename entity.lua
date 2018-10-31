@@ -129,19 +129,10 @@ function Server:spawn(typeName, props)
     self.allById[ent.__id] = ent
     self.owned[ent] = true
 
-    local needsSend
     if ent.didSpawn then
-        needsSend = ent:didSpawn(props)
+        ent:didSpawn(props)
     end
-    if needsSend ~= false then
-        self:sync(ent)
-    end
-
---    -- Broadcast to clients
---    ent.__mgr = nil
---    local data = bitser.dumps(ent)
---    ent.__mgr = self
---    self.serverHost:broadcast(rpcToData('didSpawn', typeName, data))
+    self:sync(ent)
 
     return ent
 end
@@ -155,12 +146,6 @@ end
 function Client:spawn(typeName, props)
     self.serverPeer:send(rpcToData('requestSpawn', typeName, props))
 end
-
---defRpc('didSpawn')
---function Client:didSpawn(peer, typeName, props)
---    -- TODO(nikki): Validate
---    self:spawn(typeName, props)
---end
 
 
 -- Sync
@@ -206,6 +191,7 @@ function Common:applyReceivedSyncs()
         end
         syncedEnts[ent] = true
     end
+    self.received = {}
     for ent in pairs(syncedEnts) do
         if ent.didSync then
             ent:didSync()
