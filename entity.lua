@@ -39,8 +39,8 @@ local function actuallyConstruct(typeName, props)
     end
     ent.__typeId = ty.__typeId
 
-    if ent.onConstruct then -- `onConstruct` event
-        ent:onConstruct(props)
+    if ent.didConstruct then -- `didConstruct` event
+        ent:didConstruct(props)
     end
     return ent
 end
@@ -169,26 +169,27 @@ function Common:sync(ent)
     self.needsSend[ent] = ent
 end
 
-defRpc('receiveSync')
-function Client:receiveSync(peer, newEnts)
-    for newEnt in pairs(newEnts) do
-        -- TODO(nikki): Merge
-        self.received[newEnt.__id] = newEnt
-    end
-end
-
-function Common:flushSend(host)
+function Common:sendSyncs(host)
     for ent in pairs(self.needsSend) do
         ent.__mgr = nil
     end
-    host:broadcast(rpcToData('receiveSync', self.needsSend))
+    host:broadcast(rpcToData('receiveSyncs', self.needsSend))
     for ent in pairs(self.needsSend) do
         ent.__mgr = self
     end
     self.needsSend = {}
 end
 
-function Common:flushReceive()
+defRpc('receiveSyncs')
+function Client:receiveSyncs(peer, newEnts)
+    for newEnt in pairs(newEnts) do
+        -- TODO(nikki): Merge
+        self.received[newEnt.__id] = newEnt
+    end
+end
+
+function Common:applyReceivedSyncs()
+    local syncedEnts = {}
     for id, newEnt in pairs(self.received) do
         -- TODO(nikki): Merge
         local ent = self.allById[newEnt.__id]
@@ -197,8 +198,17 @@ function Common:flushReceive()
             ent.__mgr = self
             self.allById[newEnt.__id] = ent
         end
+        if ent.willSync then
+            ent:willSync(newEnt)
+        end
         for k, v in pairs(newEnt) do
             ent[k] = v
+        end
+        syncedEnts[ent] = true
+    end
+    for ent in pairs(syncedEnts) do
+        if ent.didSync then
+            ent:didSync()
         end
     end
 end
@@ -206,7 +216,7 @@ end
 
 -- Updating
 
-function Common:serviceHost(host)
+function Common:receiveRpcs(host)
     while true do
         local event = host:service(0)
         if not event then break end
@@ -217,14 +227,14 @@ function Common:serviceHost(host)
     end
 end
 
-function Server:update(dt)
-    self:flushSend(self.serverHost)
-    self:serviceHost(self.serverHost)
+function Server:process()
+    self:sendSyncs(self.serverHost)
+    self:receiveRpcs(self.serverHost)
 end
 
-function Client:update(dt)
-    self:serviceHost(self.clientHost)
-    self:flushReceive()
+function Client:process()
+    self:receiveRpcs(self.clientHost)
+    self:applyReceivedSyncs()
 end
 
 

@@ -27,7 +27,7 @@ local server, client
 
 function love.update(dt)
     if server then
-        server:update(dt)
+        server:process()
 
         for ent in pairs(server.owned) do
             ent:update(dt)
@@ -35,7 +35,7 @@ function love.update(dt)
         end
     end
     if client then
-        client:update(dt)
+        client:process()
     end
 end
 
