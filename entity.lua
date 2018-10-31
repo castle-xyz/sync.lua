@@ -73,10 +73,10 @@ end
 -- Initialization
 
 function Common:init(props)
-    self.allById = {} -- `self.allById[ent] = ent.__id` for all entities
-    self.needsSend = {} -- `self.needsSend[ent] = ent` for entities we need to send
-    self.received = {} -- `self.received[newEnt.__id] = newEnt` for entities we received updates for
-    self.owned = {} -- Indexed by instance
+    self.allById = {} -- `t[ent.__id] = ent` for all alive entities sync'd with us
+    self.needsSend = {} -- `t[ent.__id] = ent` for entities whose sync we need to send
+    self.receivedSyncs = {} -- `t[sync.__id] = sync` for received syncs pending apply
+    self.owned = {} -- `t[ent] = ent` for entities we own
 end
 
 function Server:init(props)
@@ -151,47 +151,51 @@ end
 -- Sync
 
 function Common:sync(ent)
-    self.needsSend[ent] = ent
+    self.needsSend[ent.__id] = ent
 end
 
-function Common:sendSyncs(host)
-    for ent in pairs(self.needsSend) do
+function Common:sendSyncs(host, peer, toSend)
+    for _, ent in pairs(toSend) do
         ent.__mgr = nil
     end
-    host:broadcast(rpcToData('receiveSyncs', self.needsSend))
-    for ent in pairs(self.needsSend) do
+    local data = rpcToData('receiveSyncs', toSend) -- TODO(nikki): Convert
+    if peer then
+        peer:send(data)
+    else
+        host:broadcast(data)
+    end
+    for _, ent in pairs(toSend) do
         ent.__mgr = self
     end
-    self.needsSend = {}
 end
 
 defRpc('receiveSyncs')
-function Client:receiveSyncs(peer, newEnts)
-    for newEnt in pairs(newEnts) do
-        -- TODO(nikki): Merge
-        self.received[newEnt.__id] = newEnt
+function Client:receiveSyncs(peer, syncs)
+    for _, sync in pairs(syncs) do
+        -- TODO(nikki): Validate, queue
+        self.receivedSyncs[sync.__id] = sync
     end
 end
 
 function Common:applyReceivedSyncs()
     local syncedEnts = {}
-    for id, newEnt in pairs(self.received) do
-        -- TODO(nikki): Merge
-        local ent = self.allById[newEnt.__id]
+    for id, sync in pairs(self.receivedSyncs) do
+        -- TODO(nikki): Dequeue
+        local ent = self.allById[sync.__id]
         if not ent then
-            ent = actuallyConstruct(typeIdToName[newEnt.__typeId])
+            ent = actuallyConstruct(typeIdToName[sync.__typeId])
             ent.__mgr = self
-            self.allById[newEnt.__id] = ent
+            self.allById[sync.__id] = ent
         end
         if ent.willSync then
-            ent:willSync(newEnt)
+            ent:willSync(sync)
         end
-        for k, v in pairs(newEnt) do
+        for k, v in pairs(sync) do
             ent[k] = v
         end
         syncedEnts[ent] = true
     end
-    self.received = {}
+    self.receivedSyncs = {}
     for ent in pairs(syncedEnts) do
         if ent.didSync then
             ent:didSync()
@@ -209,18 +213,30 @@ function Common:receiveRpcs(host)
 
         if event.type == 'receive' then
             self:callRpc(event.peer, dataToRpc(event.data))
+        elseif event.type == 'connect' then
+            self:didConnect(event.peer)
         end
     end
 end
 
 function Server:process()
-    self:sendSyncs(self.serverHost)
+    self:sendSyncs(self.serverHost, nil, self.needsSend)
+    self.needsSend = {}
+
     self:receiveRpcs(self.serverHost)
 end
 
 function Client:process()
     self:receiveRpcs(self.clientHost)
+
     self:applyReceivedSyncs()
+end
+
+function Server:didConnect(peer)
+    self:sendSyncs(nil, peer, self.allById)
+end
+
+function Client:didConnect()
 end
 
 
