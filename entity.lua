@@ -2,7 +2,7 @@ local entity = {}
 
 
 local enet = require 'enet'
-local bitser = require 'https://raw.githubusercontent.com/gvx/bitser/4f2680317cdc8b6c5af7133835de5075f2cc0d1f/bitser.lua'
+local bitser = require 'bitser'
 
 
 local function genId()
