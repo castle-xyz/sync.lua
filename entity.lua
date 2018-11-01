@@ -5,8 +5,10 @@ local enet = require 'enet'
 local bitser = require 'bitser'
 
 
+-- Ids
+
 local function genId()
-    return math.random(2 ^ 30) -- Going with dumb `id` generation for now
+    return math.random(2 ^ 30)
 end
 
 
@@ -25,25 +27,6 @@ function entity.registerType(typeName, ty)
     ty.__typeId = #typeIdToName
 
     return ty
-end
-
-local function actuallyConstruct(typeName, props)
-    local ent
-
-    local ty = assert(typesByName[typeName], "no type '" .. typeName .. "'")
-    if ty.construct then -- User-defined construction
-        ent = ty:construct(props)
-    else -- Default construction
-        ty.__index = ty
-        ent = setmetatable({}, ty)
-    end
-    ent.__local = {}
-    ent.__typeId = ty.__typeId
-
-    if ent.didConstruct then -- `didConstruct` event
-        ent:didConstruct(props)
-    end
-    return ent
 end
 
 
@@ -127,12 +110,31 @@ end
 
 -- Spawning
 
+function Common:construct(typeName, props)
+    local ent
+
+    local ty = assert(typesByName[typeName], "no type '" .. typeName .. "'")
+    if ty.construct then -- User-defined construction
+        ent = ty:construct(props)
+    else -- Default construction
+        ty.__index = ty
+        ent = setmetatable({}, ty)
+    end
+    ent.__typeId = ty.__typeId
+    ent.__mgr = self
+    ent.__local = {}
+
+    if ent.didConstruct then -- `didConstruct` event
+        ent:didConstruct(props)
+    end
+    return ent
+end
+
 function Server:spawn(typeName, props)
     props = props or {}
 
-    local ent = actuallyConstruct(typeName, props)
+    local ent = self:construct(typeName, props)
     ent.__id = genId()
-    ent.__mgr = self
 
     self.all[ent.__id] = ent
 
@@ -184,9 +186,8 @@ function Common:applyReceivedSyncs()
     function __DESERIALIZE_ENTITY_REF(id, typeId)
         local ent = self.all[id]
         if not ent then
-            ent = actuallyConstruct(typeIdToName[typeId])
+            ent = self:construct(typeIdToName[typeId])
             ent.__id = id
-            ent.__mgr = self
             self.all[id] = ent
         end
         return ent
