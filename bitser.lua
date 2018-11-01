@@ -176,10 +176,9 @@ local function write_table(value, seen)
     depth = depth + 1
 
     if false and depth > 2 and value.__id and value.__typeId then --entity reference
-        print(depth)
         Buffer_write_byte(251)
-        write_number(value.__id, seen)
-        write_number(value.__typeId, seen)
+        serialize_value(value.__id, seen)
+        serialize_value(value.__typeId, seen)
     else
         local classkey
         local classname = (class_name_registry[value.class] -- MiddleClass
@@ -351,11 +350,14 @@ local function deserialize_value(seen)
 		return Buffer_read_data("int16_t[1]", 2)[0]
     elseif t == 251 then
         --entity reference
+        local idx = reserve_seen(seen)
         assert(__DESERIALIZE_ENTITY_REF,
             "need `__DESERIALIZE_ENTITY_REF` to deserialize deep entity reference")
         local id = deserialize_value(seen)
         local typeId = deserialize_value(seen)
-        return add_to_seen(__DESERIALIZE_ENTITY_REF(id, typeId), seen)
+        local value = __DESERIALIZE_ENTITY_REF(id, typeId)
+        seen[idx] = value
+        return value
 	else
 		error("unsupported serialized type " .. t)
 	end
