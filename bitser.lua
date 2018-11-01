@@ -27,6 +27,7 @@ local buf_size = -1
 local buf = nil
 local writable_buf = nil
 local writable_buf_size = nil
+local depth
 
 local function Buffer_prereserve(min_size)
 	if buf_size < min_size then
@@ -172,37 +173,48 @@ local function write_boolean(value, _)
 end
 
 local function write_table(value, seen)
-	local classkey
-	local classname = (class_name_registry[value.class] -- MiddleClass
-		or class_name_registry[value.__baseclass] -- SECL
-		or class_name_registry[getmetatable(value)] -- hump.class
-		or class_name_registry[value.__class__] -- Slither
-		or class_name_registry[value.__class]) -- Moonscript class
-	if classname then
-		classkey = classkey_registry[classname]
-		Buffer_write_byte(242)
-		serialize_value(classname, seen)
-	else
-		Buffer_write_byte(240)
-	end
-	local len = #value
-	write_number(len, seen)
-	for i = 1, len do
-		serialize_value(value[i], seen)
-	end
-	local klen = 0
-	for k in pairs(value) do
-		if (type(k) ~= 'number' or floor(k) ~= k or k > len or k < 1) and k ~= classkey then
-			klen = klen + 1
-		end
-	end
-	write_number(klen, seen)
-	for k, v in pairs(value) do
-		if (type(k) ~= 'number' or floor(k) ~= k or k > len or k < 1) and k ~= classkey then
-			serialize_value(k, seen)
-			serialize_value(v, seen)
-		end
-	end
+    depth = depth + 1
+
+    if false and depth > 2 and value.__id and value.__typeId then --entity reference
+        print(depth)
+        Buffer_write_byte(251)
+        write_number(value.__id, seen)
+        write_number(value.__typeId, seen)
+    else
+        local classkey
+        local classname = (class_name_registry[value.class] -- MiddleClass
+                or class_name_registry[value.__baseclass] -- SECL
+                or class_name_registry[getmetatable(value)] -- hump.class
+                or class_name_registry[value.__class__] -- Slither
+                or class_name_registry[value.__class]) -- Moonscript class
+        if classname then
+            classkey = classkey_registry[classname]
+            Buffer_write_byte(242)
+            serialize_value(classname, seen)
+        else
+            Buffer_write_byte(240)
+        end
+        local len = #value
+        write_number(len, seen)
+        for i = 1, len do
+            serialize_value(value[i], seen)
+        end
+        local klen = 0
+        for k in pairs(value) do
+            if (type(k) ~= 'number' or floor(k) ~= k or k > len or k < 1) and k ~= classkey then
+                klen = klen + 1
+            end
+        end
+        write_number(klen, seen)
+        for k, v in pairs(value) do
+            if (type(k) ~= 'number' or floor(k) ~= k or k > len or k < 1) and k ~= classkey then
+                serialize_value(k, seen)
+                serialize_value(v, seen)
+            end
+        end
+    end
+
+    depth = depth - 1
 end
 
 local types = {number = write_number, string = write_string, table = write_table, boolean = write_boolean, ["nil"] = write_nil}
@@ -246,6 +258,7 @@ end
 local function serialize(value)
 	Buffer_makeBuffer(4096)
 	local seen = {len = 0}
+	depth = 0
 	serialize_value(value, seen)
 end
 
@@ -336,6 +349,13 @@ local function deserialize_value(seen)
 	elseif t == 250 then
 		--short int
 		return Buffer_read_data("int16_t[1]", 2)[0]
+    elseif t == 251 then
+        --entity reference
+        assert(__DESERIALIZE_ENTITY_REF,
+            "need `__DESERIALIZE_ENTITY_REF` to deserialize deep entity reference")
+        local id = deserialize_value(seen)
+        local typeId = deserialize_value(seen)
+        return add_to_seen(__DESERIALIZE_ENTITY_REF(id, typeId), seen)
 	else
 		error("unsupported serialized type " .. t)
 	end

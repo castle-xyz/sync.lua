@@ -76,7 +76,7 @@ function Common:init(props)
     -- Each of these tables is a 'set' of the form `t[k.__id] = k` for all `k` in the set
     self.all = {} -- Entities we can read
     self.needsSend = {} -- Entities whose sync we need to send
-    self.receivedSyncs = {} -- Received syncs pending apply
+    self.receivedSyncsDumps = {} -- Received syncs pending apply
 end
 
 function Server:init(props)
@@ -154,7 +154,7 @@ function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all conn
     for _, ent in pairs(syncs) do
         ent.__mgr = nil
     end
-    local data = rpcToData('receiveSyncs', syncs) -- TODO(nikki): Convert
+    local data = rpcToData('receiveSyncs', bitser.dumps(syncs)) -- TODO(nikki): Convert
     for _, ent in pairs(syncs) do
         ent.__mgr = self
     end
@@ -168,29 +168,30 @@ end
 
 defRpc('receiveSyncs')
 function Client:receiveSyncs(peer, syncs)
-    for _, sync in pairs(syncs) do
-        self.receivedSyncs[sync.__id] = sync
-    end
+    table.insert(self.receivedSyncsDumps, syncs)
 end
 
 function Common:applyReceivedSyncs()
     local syncedEnts = {}
-    for _, sync in pairs(self.receivedSyncs) do
-        local ent = self.all[sync.__id]
-        if not ent then
-            ent = actuallyConstruct(typeIdToName[sync.__typeId])
-            ent.__mgr = self
-            self.all[sync.__id] = ent
+    for _, dump in pairs(self.receivedSyncsDumps) do
+        local syncs = bitser.loads(dump)
+        for _, sync in pairs(syncs) do
+            local ent = self.all[sync.__id]
+            if not ent then
+                ent = actuallyConstruct(typeIdToName[sync.__typeId])
+                ent.__mgr = self
+                self.all[sync.__id] = ent
+            end
+            if ent.willSync then
+                ent:willSync(sync)
+            end
+            for k, v in pairs(sync) do
+                ent[k] = v
+            end
+            syncedEnts[ent] = true
         end
-        if ent.willSync then
-            ent:willSync(sync)
-        end
-        for k, v in pairs(sync) do
-            ent[k] = v
-        end
-        syncedEnts[ent] = true
     end
-    self.receivedSyncs = {}
+    self.receivedSyncsDumps = {}
     for ent in pairs(syncedEnts) do
         if ent.didSync then
             ent:didSync()
