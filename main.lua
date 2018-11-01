@@ -70,6 +70,7 @@ local Player = entity.registerType('Player')
 Player.depth = 100
 
 function Player:didConstruct()
+    self.radius = 15
     local room
     for _, ent in pairs(self.__mgr.all) do
         if ent.__typeName == 'Room' then
@@ -77,8 +78,8 @@ function Player:didConstruct()
         end
     end
     self.__local.body = love.physics.newBody(room.__local.world, 0, 0, 'dynamic')
-    self.__local.shape = love.physics.newCircleShape(40)
-    self.__local.fixture = love.physics.newFixture(self.__local.body, self.__local.shape, 0.6)
+    self.__local.shape = love.physics.newCircleShape(self.radius)
+    self.__local.fixture = love.physics.newFixture(self.__local.body, self.__local.shape, 3)
 end
 
 function Player:didSpawn(props)
@@ -109,7 +110,7 @@ end
 function Player:draw()
     love.graphics.stacked('all', function()
         love.graphics.setColor(self.r, self.g, self.b)
-        love.graphics.ellipse('fill', self.x, self.y, 40, 40)
+        love.graphics.ellipse('fill', self.x, self.y, self.radius, self.radius)
     end)
 end
 
@@ -172,7 +173,9 @@ function love.update(dt)
     end
 
     for _, client in pairs(clients) do
-        client:process()
+        if math.random() < 0.3 then
+            client:process()
+        end
 
         for id, ent in pairs(client.all) do
             if ent.update then
