@@ -29,6 +29,10 @@ local writable_buf = nil
 local writable_buf_size = nil
 local depth
 
+local function is_entity(value)
+    return type(value) == 'table' and value.__id and value.__typeId
+end
+
 local function Buffer_prereserve(min_size)
 	if buf_size < min_size then
 		buf_size = min_size
@@ -175,7 +179,7 @@ end
 local function write_table(value, seen)
     depth = depth + 1
 
-    if depth > 2 and value.__id and value.__typeId then --entity reference
+    if depth > 2 and is_entity(value) then --entity reference
         seen[value] = nil
         seen.len = seen.len - 1
         Buffer_write_byte(251)
@@ -221,7 +225,7 @@ end
 local types = {number = write_number, string = write_string, table = write_table, boolean = write_boolean, ["nil"] = write_nil}
 
 serialize_value = function(value, seen)
-	if seen[value] then
+	if seen[value] and not is_entity(value) then --always visit entity references
 		local ref = seen[value]
 		if ref < 64 then
 			--small reference
