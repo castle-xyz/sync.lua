@@ -91,6 +91,12 @@ function love.update(dt)
 
     for _, client in pairs(clients) do
         client:process()
+
+        for id, ent in pairs(client.all) do
+            if ent.update then
+                ent:update(dt)
+            end
+        end
     end
 end
 

@@ -150,6 +150,9 @@ function Server:sync(ent)
     self.needsSend[ent.__id] = ent
 end
 
+function Client:sync(ent)
+end
+
 function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all connected peers
     for _, ent in pairs(syncs) do
         ent.__mgr = nil
