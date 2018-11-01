@@ -6,7 +6,7 @@ local bitser = require 'bitser'
 
 
 local function genId()
-    return tostring(math.random(2 ^ 30)) -- Going with dumb `id` generation for now
+    return math.random(2 ^ 30) -- Going with dumb `id` generation for now
 end
 
 
@@ -175,16 +175,23 @@ function Client:receiveSyncs(peer, syncs)
 end
 
 function Common:applyReceivedSyncs()
+    -- Our bitser fork uses this to deserialize entity references
+    function __DESERIALIZE_ENTITY_REF(id, typeId)
+        local ent = self.all[id]
+        if not ent then
+            ent = actuallyConstruct(typeIdToName[typeId])
+            ent.__id = id
+            ent.__mgr = self
+            self.all[id] = ent
+        end
+        return ent
+    end
+
     local syncedEnts = {}
     for _, dump in pairs(self.receivedSyncsDumps) do
         local syncs = bitser.loads(dump)
         for _, sync in pairs(syncs) do
-            local ent = self.all[sync.__id]
-            if not ent then
-                ent = actuallyConstruct(typeIdToName[sync.__typeId])
-                ent.__mgr = self
-                self.all[sync.__id] = ent
-            end
+            local ent = __DESERIALIZE_ENTITY_REF(sync.__id, sync.__typeId)
             if ent.willSync then
                 ent:willSync(sync)
             end
@@ -200,6 +207,8 @@ function Common:applyReceivedSyncs()
             ent:didSync()
         end
     end
+
+    __DESERIALIZE_ENTITY_REF = nil
 end
 
 
