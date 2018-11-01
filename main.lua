@@ -1,3 +1,25 @@
+-- `love.graphics.stacked([arg], foo)` calls `foo` between `love.graphics.push([arg])` and
+-- `love.graphics.pop()` while being resilient to errors
+function love.graphics.stacked(...)
+    local arg, func
+    if select('#', ...) == 1 then
+        func = select(1, ...)
+    else
+        arg = select(1, ...)
+        func = select(2, ...)
+    end
+    love.graphics.push(arg)
+
+    local succeeded, err = pcall(func)
+
+    love.graphics.pop()
+
+    if not succeeded then
+        error(err, 0)
+    end
+end
+
+
 local entity = require 'entity'
 
 local W, H = 0.5 * love.graphics.getWidth(), 0.5 * love.graphics.getHeight()
@@ -15,10 +37,10 @@ function Gun:didSpawn(props)
 end
 
 function Gun:draw()
-    love.graphics.push('all')
-    love.graphics.setColor(self.r, self.g, self.b)
-    love.graphics.rectangle('fill', self.x, self.y, 15, 15)
-    love.graphics.pop()
+    love.graphics.stacked('all', function()
+        love.graphics.setColor(self.r, self.g, self.b)
+        love.graphics.rectangle('fill', self.x, self.y, 15, 15)
+    end)
 end
 
 
@@ -37,10 +59,13 @@ function Player:didSpawn(props)
 end
 
 function Player:draw()
-    love.graphics.push('all')
-    love.graphics.setColor(self.r, self.g, self.b)
-    love.graphics.ellipse('fill', self.x, self.y, 40, 40)
-    love.graphics.pop()
+    love.graphics.stacked('all', function()
+        love.graphics.setColor(self.r, self.g, self.b)
+        love.graphics.ellipse('fill', self.x, self.y, 40, 40)
+        love.graphics.setColor(1, 0, 0)
+        local gunX, gunY = self:_gunPos()
+        love.graphics.rectangle('line', gunX, gunY, 15, 15)
+    end)
 end
 
 function Player:update(dt)
@@ -108,6 +133,28 @@ local function updateWalkState()
             left = love.keyboard.isDown('left'),
             right = love.keyboard.isDown('right'),
         })
+
+        local Gun
+        local nGuns = 0
+        for _, ent in pairs(clients[1].all) do
+            if ent.__typeName == 'Gun' then
+                Gun = ent
+                nGuns = nGuns + 1
+            end
+        end
+
+        local Player
+        local nPlayers = 0
+        for _, ent in pairs(clients[1].all) do
+            if ent.__typeName == 'Player' then
+                Player = ent
+                nPlayers = nPlayers + 1
+            end
+        end
+
+        print(clients[1].controller.player.walkState.up)
+
+        print(nPlayers, nGuns, Player.gun == Gun, clients[1].controller.player == Player)
     end
     if clients[2] and clients[2].controller then
         clients[2].controller:setWalkState({
@@ -141,28 +188,26 @@ end
 
 function love.draw()
     for i, client in ipairs(clients) do
-        love.graphics.push('all')
+        love.graphics.stacked('all', function()
+            local dx = (require('bit')).band(i - 1, 1) * W
+            local dy = (require('bit')).band(i - 1, 2) / 2 * H
 
-        local dx = (require('bit')).band(i - 1, 1) * W
-        local dy = (require('bit')).band(i - 1, 2) / 2 * H
+            love.graphics.translate(dx, dy)
+            love.graphics.setScissor(dx, dy, W, H)
+            love.graphics.print('client ' .. client.serverPeer:state(), 20, 20)
 
-        love.graphics.translate(dx, dy)
-        love.graphics.setScissor(dx, dy, W, H)
-        love.graphics.print('client ' .. client.serverPeer:state(), 20, 20)
-
-        local drawOrder = {}
-        for id, ent in pairs(client.all) do
-            if ent.draw then
-                table.insert(drawOrder, ent)
+            local drawOrder = {}
+            for id, ent in pairs(client.all) do
+                if ent.draw then
+                    table.insert(drawOrder, ent)
+                end
             end
-        end
-        table.sort(drawOrder, function(e1, e2)
-            return e1.depth < e2.depth
+            table.sort(drawOrder, function(e1, e2)
+                return e1.depth < e2.depth
+            end)
+            for _, ent in ipairs(drawOrder) do
+                ent:draw()
+            end
         end)
-        for _, ent in ipairs(drawOrder) do
-            ent:draw()
-        end
-
-        love.graphics.pop()
     end
 end
