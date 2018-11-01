@@ -149,6 +149,9 @@ function Controller:update(dt)
         end
         if self.__local.willSpawnPlayerIn < 0 then
             self.player = self.__mgr:spawn('Player')
+            for i = 1, 5 do
+                self.__mgr:spawn('Player')
+            end
             self.__local.willSpawnPlayerIn = nil
         end
     end
@@ -173,9 +176,7 @@ function love.update(dt)
     end
 
     for _, client in pairs(clients) do
-        if math.random() < 0.3 then
-            client:process()
-        end
+        client:process()
 
         for id, ent in pairs(client.all) do
             if ent.update then
