@@ -54,35 +54,51 @@ function Player:didSpawn(props)
 
     self.r, self.g, self.b = math.random(), math.random(), math.random()
 
-    local gunX, gunY = self:_gunPos()
-    self.gun = self.__mgr:spawn('Gun', { x = gunX, y = gunY })
+    self.guns = {}
+    for i = 1, 4 do
+        table.insert(self.guns, self.__mgr:spawn('Gun', {
+            x = self.x + 15 * (1 - 2 * math.random()),
+            y = self.y + 15 * (1 - 2 * math.random()),
+        }))
+    end
 end
 
 function Player:draw()
     love.graphics.stacked('all', function()
         love.graphics.setColor(self.r, self.g, self.b)
         love.graphics.ellipse('fill', self.x, self.y, 40, 40)
-        love.graphics.setColor(1, 0, 0)
-        local gunX, gunY = self:_gunPos()
-        love.graphics.rectangle('line', gunX, gunY, 15, 15)
     end)
 end
 
 function Player:update(dt)
     local vx, vy = 0, 0
+
     if self.walkState.up then vy = vy - 120 end
     if self.walkState.down then vy = vy + 120 end
     if self.walkState.left then vx = vx - 120 end
     if self.walkState.right then vx = vx + 120 end
-    self.x, self.y = self.x + vx * dt, self.y + vy * dt
-    self.__mgr:sync(self)
 
-    self.gun.x, self.gun.y = self:_gunPos()
-    self.__mgr:sync(self.gun)
-end
+    local newX, newY = self.x + vx * dt, self.y + vy * dt
 
-function Player:_gunPos()
-    return self.x + 10, self.y - 10
+    local canMove = true
+    for _, ent in pairs(self.__mgr.all) do
+        if ent ~= self and ent.__typeName == 'Player' then
+            local dx = newX - ent.x
+            local dy = newY - ent.y
+            if dx * dx + dy * dy < 80 * 80 then
+                canMove = false
+            end
+        end
+    end
+    if canMove then
+        self.x, self.y = newX, newY
+        self.__mgr:sync(self)
+
+        for _, gun in ipairs(self.guns) do
+            gun.x, gun.y = gun.x + vx * dt, gun.y + vy * dt
+            self.__mgr:sync(gun)
+        end
+    end
 end
 
 
