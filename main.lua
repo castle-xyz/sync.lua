@@ -28,6 +28,7 @@ Player.depth = 100
 
 function Player:didSpawn(props)
     self.x, self.y = W * math.random(), H * math.random()
+    self.walkState = { up = false, down = false, left = false, right = false }
 
     self.r, self.g, self.b = math.random(), math.random(), math.random()
 
@@ -43,6 +44,13 @@ function Player:draw()
 end
 
 function Player:update(dt)
+    local vx, vy = 0, 0
+    if self.walkState.up then vy = vy - 40 end
+    if self.walkState.down then vy = vy + 40 end
+    if self.walkState.left then vx = vx - 40 end
+    if self.walkState.right then vx = vx + 40 end
+    self.x, self.y = self.x + vx * dt, self.y + vy * dt
+
     self.gun.x, self.gun.y = self:_gunPos()
 end
 
@@ -54,7 +62,11 @@ end
 local Controller = entity.registerType('Controller')
 
 function Controller:didSpawn(props)
-    self.__mgr:spawn('Player')
+    self.player = self.__mgr:spawn('Player')
+end
+
+function Controller:setWalkState(walkState)
+    self.player.walkState = walkState
 end
 
 
@@ -81,18 +93,43 @@ function love.update(dt)
     end
 end
 
+local function updateWalkState()
+    if clients[1] and clients[1].controller then
+        clients[1].controller:setWalkState({
+            up = love.keyboard.isDown('up'),
+            down = love.keyboard.isDown('down'),
+            left = love.keyboard.isDown('left'),
+            right = love.keyboard.isDown('right'),
+        })
+    end
+    if clients[2] and clients[2].controller then
+        clients[2].controller:setWalkState({
+            up = love.keyboard.isDown('w'),
+            down = love.keyboard.isDown('s'),
+            left = love.keyboard.isDown('a'),
+            right = love.keyboard.isDown('d'),
+        })
+    end
+end
+
 function love.keypressed(k)
-    if k == 's' then
+    updateWalkState()
+
+    if k == '1' then
         server = entity.newServer {
             address = '*:22122',
             controllerTypeName = 'Controller',
         }
     end
-    if k == 'c' then
+    if k == '2' then
         for i = 1, 4 do
             clients[i] = entity.newClient { address = '10.0.1.39:22122' }
         end
     end
+end
+
+function love.keyreleased(k)
+    updateWalkState()
 end
 
 function love.draw()

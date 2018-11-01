@@ -110,7 +110,7 @@ local function defRpc(name)
 end
 
 local function rpcToData(name, ...)
-    return bitser.dumps({ rpcNameToId[name], ... })
+    return bitser.dumps({ rpcNameToId[name], ... }) -- TODO(nikki): Allow `nil`s in between
 end
 
 local function dataToRpc(data)
@@ -143,17 +143,6 @@ function Server:spawn(typeName, props)
     return ent
 end
 
---defRpc('requestSpawn')
---function Server:requestSpawn(peer, typeName, props)
---    props = props or {}
---    props.__clientId = peer:connect_id()
---    self:spawn(typeName, props)
---end
---
---function Client:spawn(typeName, props)
---    self.serverPeer:send(rpcToData('requestSpawn', typeName, props))
---end
-
 
 -- Sync
 
@@ -180,7 +169,6 @@ end
 defRpc('receiveSyncs')
 function Client:receiveSyncs(peer, syncs)
     for _, sync in pairs(syncs) do
-        -- TODO(nikki): Validate, queue
         self.receivedSyncs[sync.__id] = sync
     end
 end
@@ -188,7 +176,6 @@ end
 function Common:applyReceivedSyncs()
     local syncedEnts = {}
     for _, sync in pairs(self.receivedSyncs) do
-        -- TODO(nikki): Dequeue
         local ent = self.all[sync.__id]
         if not ent then
             ent = actuallyConstruct(typeIdToName[sync.__typeId])
@@ -212,15 +199,41 @@ function Common:applyReceivedSyncs()
 end
 
 
--- Connection / disconnection
+-- Controllers and connection / disconnection
+
+defRpc('receiveControllerCall')
+function Server:receiveControllerCall(peer, methodName, ...)
+    local controller = assert(self.controllers[peer:connect_id()], "no controller for this `peer`")
+    local method = assert(controller[methodName], "controller has no method '" .. methodName .. "'")
+    method(controller, ...)
+end
+
+defRpc('receiveControllerId')
+function Client:receiveControllerId(peer, controllerId)
+    self:applyReceivedSyncs() -- Make sure we've sync'd the controller
+    local controller = self.all[controllerId]
+    self.controller = setmetatable({}, {
+        __index = function(t, k)
+            local v = controller[k]
+            if type(v) == 'function' then
+                t[k] = function(_, ...)
+                    self.serverPeer:send(rpcToData('receiveControllerCall', k, ...))
+                end
+                return t[k]
+            else
+                return v
+            end
+        end
+    })
+end
 
 function Server:didConnect(peer)
     local clientId = peer:connect_id()
     assert(not self.controllers[clientId], "`clientId` clash")
-    self.controllers[clientId] = self:spawn(self.controllerTypeName, {
-        __clientId = clientId,
-    })
+    local controller = self:spawn(self.controllerTypeName, { __clientId = clientId })
+    self.controllers[clientId] = controller
     self:sendSyncs(peer, self.all)
+    peer:send(rpcToData('receiveControllerId', controller.__id))
 end
 
 function Client:didConnect()
@@ -228,7 +241,7 @@ end
 
 function Server:didDisconnect(peer)
     local clientId = peer:connect_id()
-    assert(self.controllers[clientId], "no controller for this `clientId`")
+    assert(self.controllers[clientId], "no controller for this `peer`")
     -- TODO(nikki): Despawn
 end
 
@@ -243,6 +256,7 @@ function Common:process()
         local event = self.host:service(0)
         if not event then break end
 
+        -- TODO(nikki): Error-tolerance
         if event.type == 'receive' then
             self:callRpc(event.peer, dataToRpc(event.data))
         elseif event.type == 'connect' then
