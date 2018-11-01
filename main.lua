@@ -133,28 +133,6 @@ local function updateWalkState()
             left = love.keyboard.isDown('left'),
             right = love.keyboard.isDown('right'),
         })
-
-        local Gun
-        local nGuns = 0
-        for _, ent in pairs(clients[1].all) do
-            if ent.__typeName == 'Gun' then
-                Gun = ent
-                nGuns = nGuns + 1
-            end
-        end
-
-        local Player
-        local nPlayers = 0
-        for _, ent in pairs(clients[1].all) do
-            if ent.__typeName == 'Player' then
-                Player = ent
-                nPlayers = nPlayers + 1
-            end
-        end
-
-        print(clients[1].controller.player.walkState.up)
-
-        print(nPlayers, nGuns, Player.gun == Gun, clients[1].controller.player == Player)
     end
     if clients[2] and clients[2].controller then
         clients[2].controller:setWalkState({
