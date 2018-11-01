@@ -45,10 +45,10 @@ end
 
 function Player:update(dt)
     local vx, vy = 0, 0
-    if self.walkState.up then vy = vy - 40 end
-    if self.walkState.down then vy = vy + 40 end
-    if self.walkState.left then vx = vx - 40 end
-    if self.walkState.right then vx = vx + 40 end
+    if self.walkState.up then vy = vy - 120 end
+    if self.walkState.down then vy = vy + 120 end
+    if self.walkState.left then vx = vx - 120 end
+    if self.walkState.right then vx = vx + 120 end
     self.x, self.y = self.x + vx * dt, self.y + vy * dt
 
     self.gun.x, self.gun.y = self:_gunPos()
