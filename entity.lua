@@ -5,6 +5,9 @@ local enet = require 'enet'
 local bitser = require 'bitser'
 
 
+local BANDWIDTH_LIMIT = 0 -- Bandwidth limit in bytes per second -- 0 for unlimited
+
+
 -- Ids
 
 local function genId()
@@ -70,6 +73,7 @@ function Server:init(props)
         "server needs `props.controllerTypeName`")
 
     self.host = enet.host_create(props.address or '*:22122')
+    self.host:bandwidth_limit(BANDWIDTH_LIMIT, BANDWIDTH_LIMIT)
     self.controllers = {}
 end
 
@@ -79,6 +83,7 @@ function Client:init(props)
     assert(props.address, "client needs `props.address` to connect to")
 
     self.host = enet.host_create()
+    self.host:bandwidth_limit(BANDWIDTH_LIMIT, BANDWIDTH_LIMIT)
     self.serverPeer = self.host:connect(props.address)
 end
 
