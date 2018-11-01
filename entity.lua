@@ -30,13 +30,14 @@ end
 local function actuallyConstruct(typeName, props)
     local ent
 
-    local ty = typesByName[typeName]
+    local ty = assert(typesByName[typeName], "no type '" .. typeName .. "'")
     if ty.construct then -- User-defined construction
         ent = ty:construct(props)
     else -- Default construction
         ty.__index = ty
         ent = setmetatable({}, ty)
     end
+    ent.__local = {}
     ent.__typeId = ty.__typeId
 
     if ent.didConstruct then -- `didConstruct` event
@@ -154,12 +155,16 @@ function Client:sync(ent)
 end
 
 function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all connected peers
+    local locals = {}
     for _, ent in pairs(syncs) do
         ent.__mgr = nil
+        locals[ent] = ent.__local
+        ent.__local = nil
     end
     local data = rpcToData('receiveSyncs', bitser.dumps(syncs)) -- TODO(nikki): Convert
     for _, ent in pairs(syncs) do
         ent.__mgr = self
+        ent.__local = locals[ent]
     end
 
     if peer then
@@ -201,6 +206,8 @@ function Common:applyReceivedSyncs()
     local syncedEnts = {}
     for _, sync in pairs(latestSyncs) do
         local ent = __DESERIALIZE_ENTITY_REF(sync.__id, sync.__typeId)
+
+        local savedLocal = ent.__local
         if ent.willSync then
             ent:willSync(sync)
         end
@@ -212,7 +219,8 @@ function Common:applyReceivedSyncs()
         for k, v in pairs(sync) do
             ent[k] = v
         end
-        ent.__mgr = self -- Just to be sure
+        ent.__local = savedLocal
+        ent.__mgr = self
         syncedEnts[ent] = true
     end
     for ent in pairs(syncedEnts) do
