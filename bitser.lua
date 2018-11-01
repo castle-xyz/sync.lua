@@ -1,3 +1,5 @@
+-- Modified by nikki93 to handle entity references for Castle's network API
+
 --[[
 Copyright (c) 2016, Robin Wellner
 
