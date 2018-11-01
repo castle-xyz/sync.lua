@@ -187,27 +187,34 @@ function Common:applyReceivedSyncs()
         return ent
     end
 
-    local syncedEnts = {}
+    -- Collect latest syncs per-entity
+    local latestSyncs = {}
     for _, dump in pairs(self.receivedSyncsDumps) do
         local syncs = bitser.loads(dump)
         for _, sync in pairs(syncs) do
-            local ent = __DESERIALIZE_ENTITY_REF(sync.__id, sync.__typeId)
-            if ent.willSync then
-                ent:willSync(sync)
-            end
-            for k in pairs(ent) do
-                if sync[k] == nil then
-                    ent[k] = nil
-                end
-            end
-            for k, v in pairs(sync) do
-                ent[k] = v
-            end
-            ent.__mgr = self -- Just to be sure
-            syncedEnts[ent] = true
+            latestSyncs[sync.__id] = sync
         end
     end
     self.receivedSyncsDumps = {}
+
+    -- Actually apply the syncs
+    local syncedEnts = {}
+    for _, sync in pairs(latestSyncs) do
+        local ent = __DESERIALIZE_ENTITY_REF(sync.__id, sync.__typeId)
+        if ent.willSync then
+            ent:willSync(sync)
+        end
+        for k in pairs(ent) do
+            if sync[k] == nil then
+                ent[k] = nil
+            end
+        end
+        for k, v in pairs(sync) do
+            ent[k] = v
+        end
+        ent.__mgr = self -- Just to be sure
+        syncedEnts[ent] = true
+    end
     for ent in pairs(syncedEnts) do
         if ent.didSync then
             ent:didSync()
