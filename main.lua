@@ -71,15 +71,7 @@ Player.depth = 100
 
 function Player:didConstruct()
     self.radius = 15
-    local room
-    for _, ent in pairs(self.__mgr.all) do
-        if ent.__typeName == 'Room' then
-            room = ent
-        end
-    end
-    self.__local.body = love.physics.newBody(room.__local.world, 0, 0, 'dynamic')
-    self.__local.shape = love.physics.newCircleShape(self.radius)
-    self.__local.fixture = love.physics.newFixture(self.__local.body, self.__local.shape, 3)
+    self:createBody()
 end
 
 function Player:didSpawn(props)
@@ -92,6 +84,7 @@ function Player:didSpawn(props)
 end
 
 function Player:didSync()
+    self:createBody()
     self:toBody()
 end
 
@@ -114,6 +107,22 @@ function Player:draw()
     end)
 end
 
+function Player:createBody()
+    if not self.__local.body then
+        local room
+        for _, ent in pairs(self.__mgr.all) do
+            if ent.__typeName == 'Room' then
+                room = ent
+            end
+        end
+        if room then
+            self.__local.body = love.physics.newBody(room.__local.world, 0, 0, 'dynamic')
+            self.__local.shape = love.physics.newCircleShape(self.radius)
+            self.__local.fixture = love.physics.newFixture(self.__local.body, self.__local.shape, 3)
+        end
+    end
+end
+
 function Player:fromBody()
     self.x, self.y = self.__local.body:getPosition()
     self.vx, self.vy = self.__local.body:getLinearVelocity()
@@ -133,27 +142,15 @@ end
 local Controller = entity.registerType('Controller')
 
 function Controller:didSpawn(props)
-    self.__local.willSpawnPlayerIn = 0.2
+    self.player = self.__mgr:spawn('Player')
+    for i = 1, 5 do
+        self.__mgr:spawn('Player')
+    end
 end
 
 function Controller:setWalkState(walkState)
     if self.player then
         self.player.walkState = walkState
-    end
-end
-
-function Controller:update(dt)
-    if self.__local.willSpawnPlayerIn ~= nil then
-        if self.__local.willSpawnPlayerIn > 0 then
-            self.__local.willSpawnPlayerIn = self.__local.willSpawnPlayerIn - dt
-        end
-        if self.__local.willSpawnPlayerIn < 0 then
-            self.player = self.__mgr:spawn('Player')
-            for i = 1, 5 do
-                self.__mgr:spawn('Player')
-            end
-            self.__local.willSpawnPlayerIn = nil
-        end
     end
 end
 
@@ -216,8 +213,8 @@ function love.keypressed(k)
         server:spawn('Room')
     end
     if k == '2' then
-        for i = 1, 4 do
-            clients[i] = entity.newClient { address = '10.0.1.39:22122' }
+        for i = 1, 2 do
+            table.insert(clients, entity.newClient { address = '10.0.1.39:22122' })
         end
     end
 end
