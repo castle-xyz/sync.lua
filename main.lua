@@ -50,8 +50,10 @@ function Player:update(dt)
     if self.walkState.left then vx = vx - 120 end
     if self.walkState.right then vx = vx + 120 end
     self.x, self.y = self.x + vx * dt, self.y + vy * dt
+    self.__mgr:sync(self)
 
     self.gun.x, self.gun.y = self:_gunPos()
+    self.__mgr:sync(self.gun)
 end
 
 function Player:_gunPos()
@@ -82,7 +84,6 @@ function love.update(dt)
             if ent.update then
                 ent:update(dt)
             end
-            server:sync(ent)
         end
 
         server:process()
