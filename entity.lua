@@ -195,9 +195,15 @@ function Common:applyReceivedSyncs()
             if ent.willSync then
                 ent:willSync(sync)
             end
+            for k in pairs(ent) do
+                if sync[k] == nil then
+                    ent[k] = nil
+                end
+            end
             for k, v in pairs(sync) do
                 ent[k] = v
             end
+            ent.__mgr = self -- Just to be sure
             syncedEnts[ent] = true
         end
     end
