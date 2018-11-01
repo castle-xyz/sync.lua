@@ -7,6 +7,8 @@ local bitser = require 'bitser'
 
 local BANDWIDTH_LIMIT = 0 -- Bandwidth limit in bytes per second -- 0 for unlimited
 
+local DESPAWNED = '__DESPAWNED' -- Sentinel value to communicate despawned entities
+
 
 -- Ids
 
@@ -129,10 +131,18 @@ function Common:construct(typeName, props)
     ent.__mgr = self
     ent.__local = {}
 
-    if ent.didConstruct then -- `didConstruct` event
+    if ent.didConstruct then
         ent:didConstruct(props)
     end
     return ent
+end
+
+function Common:destruct(ent)
+    if ent.didDestruct then
+        ent:didDestruct()
+    end
+
+    ent.__mgr = nil
 end
 
 function Server:spawn(typeName, props)
@@ -151,27 +161,52 @@ function Server:spawn(typeName, props)
     return ent
 end
 
+function Server:despawn(ent)
+    if ent.__despawned then
+        return
+    end
+
+    if ent.willDespawn then
+        ent:willDespawn()
+    end
+
+    ent.__despawned = true
+    self.all[ent.__id] = nil
+    self:sync(ent)
+
+    self:destruct(ent)
+end
+
 
 -- Sync
 
 function Server:sync(ent)
-    self.needsSend[ent.__id] = ent
+    if ent.__despawned then
+        self.needsSend[ent.__id] = DESPAWNED
+    else
+        self.needsSend[ent.__id] = ent
+    end
 end
 
 function Client:sync(ent)
 end
 
 function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all connected peers
+    -- Unset `__local` and `__mgr` so they aren't sync'd, then reset
     local locals = {}
-    for _, ent in pairs(syncs) do
-        ent.__mgr = nil
-        locals[ent] = ent.__local
-        ent.__local = nil
+    for _, sync in pairs(syncs) do
+        if sync ~= DESPAWNED then
+            sync.__mgr = nil
+            locals[sync] = sync.__local
+            sync.__local = nil
+        end
     end
     local data = rpcToData('receiveSyncs', bitser.dumps(syncs)) -- TODO(nikki): Convert
-    for _, ent in pairs(syncs) do
-        ent.__mgr = self
-        ent.__local = locals[ent]
+    for _, sync in pairs(syncs) do
+        if sync ~= DESPAWNED then
+            sync.__mgr = self
+            sync.__local = locals[sync]
+        end
     end
 
     if peer then
@@ -188,12 +223,14 @@ end
 
 function Common:applyReceivedSyncs()
     -- Our bitser fork uses this to deserialize entity references
+    local unsyncedRefs = {} -- Newly constructed entities that haven't received a sync yet
     function __DESERIALIZE_ENTITY_REF(id, typeId)
         local ent = self.all[id]
         if not ent then
             ent = self:construct(typeIdToName[typeId])
             ent.__id = id
             self.all[id] = ent
+            unsyncedRefs[id] = ent
         end
         return ent
     end
@@ -202,33 +239,56 @@ function Common:applyReceivedSyncs()
     local latestSyncs = {}
     for _, dump in pairs(self.receivedSyncsDumps) do
         local syncs = bitser.loads(dump)
-        for _, sync in pairs(syncs) do
-            latestSyncs[sync.__id] = sync
+        for id, sync in pairs(syncs) do
+            latestSyncs[id] = sync
         end
     end
     self.receivedSyncsDumps = {}
 
     -- Actually apply the syncs
     local syncedEnts = {}
-    for _, sync in pairs(latestSyncs) do
-        local ent = __DESERIALIZE_ENTITY_REF(sync.__id, sync.__typeId)
-
-        local savedLocal = ent.__local
-        if ent.willSync then
-            ent:willSync(sync)
-        end
-        for k in pairs(ent) do
-            if sync[k] == nil then
-                ent[k] = nil
+    for id, sync in pairs(latestSyncs) do
+        if sync == DESPAWNED then
+            local ent = self.all[id]
+            if ent then
+                ent.__despawned = true
+                self.all[id] = nil
+                self:destruct(ent)
             end
+        else
+            local ent = __DESERIALIZE_ENTITY_REF(id, sync.__typeId)
+            unsyncedRefs[id] = nil
+
+            local savedLocal = ent.__local
+            local defaultSyncBehavior = true
+            if ent.willSync then
+                defaultSyncBehavior = ent:willSync(sync)
+            end
+            if defaultSyncBehavior ~= false then
+                for k in pairs(ent) do
+                    if sync[k] == nil then
+                        ent[k] = nil
+                    end
+                end
+                for k, v in pairs(sync) do
+                    ent[k] = v
+                end
+            end
+            ent.__local = savedLocal
+            ent.__mgr = self
+            syncedEnts[ent] = true
         end
-        for k, v in pairs(sync) do
-            ent[k] = v
-        end
-        ent.__local = savedLocal
-        ent.__mgr = self
-        syncedEnts[ent] = true
     end
+
+    -- Verify references
+    for id, ent in pairs(unsyncedRefs) do
+        self.all[id] = nil
+        error('received a reference to entity ' .. id .. " of type '" .. ent.__typeName .. "' " ..
+                'but did not receive a sync for it -- make sure to `nil` out references to ' ..
+                'despawned entities')
+    end
+
+    -- Call events
     for ent in pairs(syncedEnts) do
         if ent.didSync then
             ent:didSync()

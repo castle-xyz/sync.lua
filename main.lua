@@ -1,7 +1,7 @@
 local entity = require 'entity'
 
 
-local W, H = 0.5 * love.graphics.getWidth(), 0.5 * love.graphics.getHeight()
+local W, H = 400, 300
 
 -- `love.graphics.stacked([arg], foo)` calls `foo` between `love.graphics.push([arg])` and
 -- `love.graphics.pop()` while being resilient to errors
@@ -74,6 +74,12 @@ function Player:didConstruct()
     self:createBody()
 end
 
+function Player:didDestruct()
+    if self.__local.body then
+        self.__local.body:destroy()
+    end
+end
+
 function Player:didSpawn(props)
     self.__local.body:setPosition(W * math.random(), H * math.random())
     self:fromBody()
@@ -109,14 +115,13 @@ end
 
 function Player:createBody()
     if not self.__local.body then
-        local room
         for _, ent in pairs(self.__mgr.all) do
             if ent.__typeName == 'Room' then
-                room = ent
+                self.__local.world = ent.__local.world
             end
         end
-        if room then
-            self.__local.body = love.physics.newBody(room.__local.world, 0, 0, 'dynamic')
+        if self.__local.world then
+            self.__local.body = love.physics.newBody(self.__local.world, 0, 0, 'dynamic')
             self.__local.shape = love.physics.newCircleShape(self.radius)
             self.__local.fixture = love.physics.newFixture(self.__local.body, self.__local.shape, 3)
         end
@@ -153,6 +158,12 @@ function Controller:setWalkState(walkState)
     end
 end
 
+function Controller:setShouldDestroy(shouldDestroy)
+    if shouldDestroy and self.player then
+        self.__mgr:despawn(self.player)
+        self.player = nil
+    end
+end
 
 
 -- 4 clients
@@ -182,7 +193,7 @@ function love.update(dt)
     end
 end
 
-local function updateWalkState()
+local function handleKeyboardInput()
     if clients[1] and clients[1].controller then
         clients[1].controller:setWalkState({
             up = love.keyboard.isDown('up'),
@@ -190,6 +201,7 @@ local function updateWalkState()
             left = love.keyboard.isDown('left'),
             right = love.keyboard.isDown('right'),
         })
+        clients[1].controller:setShouldDestroy(love.keyboard.isDown('i'))
     end
     if clients[2] and clients[2].controller then
         clients[2].controller:setWalkState({
@@ -198,11 +210,12 @@ local function updateWalkState()
             left = love.keyboard.isDown('a'),
             right = love.keyboard.isDown('d'),
         })
+        clients[2].controller:setShouldDestroy(love.keyboard.isDown('o'))
     end
 end
 
 function love.keypressed(k)
-    updateWalkState()
+    handleKeyboardInput()
 
     if k == '1' then
         server = entity.newServer {
@@ -213,13 +226,13 @@ function love.keypressed(k)
     end
     if k == '2' then
         for i = 1, 2 do
-            table.insert(clients, entity.newClient { address = '10.0.1.39:22122' })
+            table.insert(clients, entity.newClient { address = '192.168.1.80:22122' })
         end
     end
 end
 
 function love.keyreleased(k)
-    updateWalkState()
+    handleKeyboardInput()
 end
 
 function love.draw()
