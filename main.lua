@@ -1,3 +1,8 @@
+local entity = require 'entity'
+
+
+local W, H = 0.5 * love.graphics.getWidth(), 0.5 * love.graphics.getHeight()
+
 -- `love.graphics.stacked([arg], foo)` calls `foo` between `love.graphics.push([arg])` and
 -- `love.graphics.pop()` while being resilient to errors
 function love.graphics.stacked(...)
@@ -20,46 +25,84 @@ function love.graphics.stacked(...)
 end
 
 
-local entity = require 'entity'
+-- Walls surrounding the simulation. Also holds the Love physics `World`.
 
-local W, H = 0.5 * love.graphics.getWidth(), 0.5 * love.graphics.getHeight()
+local Room = entity.registerType('Room')
 
+Room.depth = 300
 
+function Room:didConstruct()
+    love.physics.setMeter(64)
+    self.__local.world = love.physics.newWorld(0, 9.81 * 64, true)
 
-local Gun = entity.registerType('Gun')
-
-Gun.depth = 200
-
-function Gun:didSpawn(props)
-    self.x, self.y = props.x, props.y
-
-    self.r, self.g, self.b = math.random(), math.random(), math.random()
+    self.__local.groundBody = love.physics.newBody(self.__local.world, 0.5 * W, H - 10)
+    self.__local.groundShape = love.physics.newRectangleShape(W, 20)
+    self.__local.groundFixture = love.physics.newFixture(
+        self.__local.groundBody, self.__local.groundShape)
+    self.__local.lwallBody = love.physics.newBody(self.__local.world, 10, 0.5 * H)
+    self.__local.lwallShape = love.physics.newRectangleShape(20, H)
+    self.__local.lwallFixture = love.physics.newFixture(
+        self.__local.lwallBody, self.__local.lwallShape)
+    self.__local.rwallBody = love.physics.newBody(self.__local.world, W - 10, 0.5 * H)
+    self.__local.rwallShape = love.physics.newRectangleShape(20, H)
+    self.__local.rwallFixture = love.physics.newFixture(
+        self.__local.rwallBody, self.__local.rwallShape)
 end
 
-function Gun:draw()
+function Room:update(dt)
+    self.__local.world:update(dt)
+end
+
+function Room:draw()
     love.graphics.stacked('all', function()
-        love.graphics.setColor(self.r, self.g, self.b)
-        love.graphics.rectangle('fill', self.x, self.y, 15, 15)
+        love.graphics.setColor(0.8, 0.5, 0.1)
+        love.graphics.rectangle('fill', 0, H - 20, W, 20)
+        love.graphics.rectangle('fill', 0, 0, 20, H)
+        love.graphics.rectangle('fill', W - 20, 0, 20, H)
     end)
 end
 
+
+-- Sync'd dynamic physics object. Forces can be applied by clients.
 
 local Player = entity.registerType('Player')
 
 Player.depth = 100
 
+function Player:didConstruct()
+    local room
+    for _, ent in pairs(self.__mgr.all) do
+        if ent.__typeName == 'Room' then
+            room = ent
+        end
+    end
+    self.__local.body = love.physics.newBody(room.__local.world, 0, 0, 'dynamic')
+    self.__local.shape = love.physics.newCircleShape(40)
+    self.__local.fixture = love.physics.newFixture(self.__local.body, self.__local.shape, 0.6)
+end
+
 function Player:didSpawn(props)
-    self.x, self.y = W * math.random(), H * math.random()
-    self.walkState = { up = false, down = false, left = false, right = false }
+    self.__local.body:setPosition(W * math.random(), H * math.random())
+    self:fromBody()
 
     self.r, self.g, self.b = math.random(), math.random(), math.random()
 
-    self.guns = {}
-    for i = 1, 4 do
-        table.insert(self.guns, self.__mgr:spawn('Gun', {
-            x = self.x + 15 * (1 - 2 * math.random()),
-            y = self.y + 15 * (1 - 2 * math.random()),
-        }))
+    self.walkState = { up = false, down = false, left = false, right = false }
+end
+
+function Player:didSync()
+    self:toBody()
+end
+
+function Player:update(dt)
+    if self.walkState.up then self.__local.body:applyForce(0, -900) end
+    if self.walkState.down then self.__local.body:applyForce(0, 200) end
+    if self.walkState.left then self.__local.body:applyForce(-200, 0) end
+    if self.walkState.right then self.__local.body:applyForce(200, 0) end
+
+    if self.__local.body:isAwake() then
+        self:fromBody()
+        self.__mgr:sync(self)
     end
 end
 
@@ -70,46 +113,44 @@ function Player:draw()
     end)
 end
 
-function Player:update(dt)
-    local vx, vy = 0, 0
-
-    if self.walkState.up then vy = vy - 120 end
-    if self.walkState.down then vy = vy + 120 end
-    if self.walkState.left then vx = vx - 120 end
-    if self.walkState.right then vx = vx + 120 end
-
-    local newX, newY = self.x + vx * dt, self.y + vy * dt
-
-    local canMove = true
-    for _, ent in pairs(self.__mgr.all) do
-        if ent ~= self and ent.__typeName == 'Player' then
-            local dx = newX - ent.x
-            local dy = newY - ent.y
-            if dx * dx + dy * dy < 80 * 80 then
-                canMove = false
-            end
-        end
-    end
-    if canMove then
-        self.x, self.y = newX, newY
-        self.__mgr:sync(self)
-
-        for _, gun in ipairs(self.guns) do
-            gun.x, gun.y = gun.x + vx * dt, gun.y + vy * dt
-            self.__mgr:sync(gun)
-        end
-    end
+function Player:fromBody()
+    self.x, self.y = self.__local.body:getPosition()
+    self.vx, self.vy = self.__local.body:getLinearVelocity()
+    self.ax, self.ay = self.__local.body:getAngularVelocity()
 end
 
+function Player:toBody()
+    self.__local.body:setPosition(self.x, self.y)
+    self.__local.body:setLinearVelocity(self.vx, self.vy)
+    self.__local.body:setAngularVelocity(self.ax, self.ay)
+end
+
+
+-- Controller -- is automatically spawend by the system once per client -- create a `Player`
+-- after a countdown (to ensuer `Room` is created)
 
 local Controller = entity.registerType('Controller')
 
 function Controller:didSpawn(props)
-    self.player = self.__mgr:spawn('Player')
+    self.__local.willSpawnPlayerIn = 0.2
 end
 
 function Controller:setWalkState(walkState)
-    self.player.walkState = walkState
+    if self.player then
+        self.player.walkState = walkState
+    end
+end
+
+function Controller:update(dt)
+    if self.__local.willSpawnPlayerIn ~= nil then
+        if self.__local.willSpawnPlayerIn > 0 then
+            self.__local.willSpawnPlayerIn = self.__local.willSpawnPlayerIn - dt
+        end
+        if self.__local.willSpawnPlayerIn < 0 then
+            self.player = self.__mgr:spawn('Player')
+            self.__local.willSpawnPlayerIn = nil
+        end
+    end
 end
 
 
@@ -168,6 +209,7 @@ function love.keypressed(k)
             address = '*:22122',
             controllerTypeName = 'Controller',
         }
+        server:spawn('Room')
     end
     if k == '2' then
         for i = 1, 4 do
