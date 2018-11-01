@@ -136,8 +136,7 @@ function Player:toBody()
 end
 
 
--- Controller -- is automatically spawend by the system once per client -- create a `Player`
--- after a countdown (to ensuer `Room` is created)
+-- Controller -- automatically spawned by the system once per client, just create `Player`s
 
 local Controller = entity.registerType('Controller')
 
