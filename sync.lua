@@ -1,4 +1,4 @@
-local entity = {}
+local sync = {}
 
 
 local enet = require 'enet'
@@ -21,7 +21,7 @@ end
 
 local typesByName, typeIdToName = {}, {}
 
-function entity.registerType(typeName, ty)
+function sync.registerType(typeName, ty)
     assert(not typesByName[typeName])
 
     ty = ty or {}
@@ -46,13 +46,13 @@ Client.__index = Client
 local Server = setmetatable({}, Common)
 Server.__index = Server
 
-function entity.newServer(props)
+function sync.newServer(props)
     local mgr = setmetatable({}, Server)
     mgr:init(props)
     return mgr
 end
 
-function entity.newClient(props)
+function sync.newClient(props)
     local mgr = setmetatable({}, Client)
     mgr:init(props)
     return mgr
@@ -381,4 +381,4 @@ function Client:processSyncs()
 end
 
 
-return entity
+return sync

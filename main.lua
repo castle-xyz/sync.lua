@@ -1,4 +1,4 @@
-local entity = require 'entity'
+local sync = require 'sync'
 
 
 local W, H = 400, 300
@@ -27,7 +27,7 @@ end
 
 -- Walls surrounding the simulation. Also holds the Love physics `World`.
 
-local Room = entity.registerType('Room')
+local Room = sync.registerType('Room')
 
 Room.depth = 300
 
@@ -65,7 +65,7 @@ end
 
 -- Sync'd dynamic physics object. Forces can be applied by clients.
 
-local Player = entity.registerType('Player')
+local Player = sync.registerType('Player')
 
 Player.depth = 100
 
@@ -143,7 +143,7 @@ end
 
 -- Controller -- automatically spawned by the system once per client, just create `Player`s
 
-local Controller = entity.registerType('Controller')
+local Controller = sync.registerType('Controller')
 
 function Controller:didSpawn(props)
     self.player = self.__mgr:spawn('Player')
@@ -218,7 +218,7 @@ function love.keypressed(k)
     handleKeyboardInput()
 
     if k == '1' then
-        server = entity.newServer {
+        server = sync.newServer {
             address = '*:22122',
             controllerTypeName = 'Controller',
         }
@@ -226,7 +226,7 @@ function love.keypressed(k)
     end
     if k == '2' then
         for i = 1, 2 do
-            table.insert(clients, entity.newClient { address = '192.168.1.80:22122' })
+            table.insert(clients, sync.newClient { address = '192.168.1.80:22122' })
         end
     end
 end
