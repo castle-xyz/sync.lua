@@ -356,23 +356,31 @@ end
 -- Top-level process
 
 function Common:process()
+    local errs = {}
+
     while true do
         local event = self.host:service(0)
         if not event then break end
 
-        -- TODO(nikki): Error-tolerance
-        if event.type == 'receive' then
-            self:callRpc(event.peer, dataToRpc(event.data))
-        elseif event.type == 'connect' then
-            self:didConnect(event.peer)
-        elseif event.type == 'disconnect' then
-            self:didDisconnect(event.peer)
-        end
+        local success, err = pcall(function()
+            if event.type == 'receive' then
+                self:callRpc(event.peer, dataToRpc(event.data))
+            elseif event.type == 'connect' then
+                self:didConnect(event.peer)
+            elseif event.type == 'disconnect' then
+                self:didDisconnect(event.peer)
+            end
+        end)
+        table.insert(errs, err)
     end
 
     self:processSyncs()
 
     self.host:flush()
+
+    if next(errs) then
+        error('`:process()` errors:\n\t' .. table.concat(errs, '\n\t'))
+    end
 end
 
 function Server:processSyncs()
