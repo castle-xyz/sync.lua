@@ -152,6 +152,13 @@ function Controller:didSpawn(props)
     end
 end
 
+function Controller:willDespawn()
+    if self.player then
+        self.__mgr:despawn(self.player)
+        self.player = nil
+    end
+end
+
 function Controller:setWalkState(walkState)
     if self.player then
         self.player.walkState = walkState
@@ -228,6 +235,12 @@ function love.keypressed(k)
         for i = 1, 2 do
             table.insert(clients, sync.newClient { address = '192.168.1.80:22122' })
         end
+    end
+    if k == '3' then
+        for _, client in ipairs(clients) do
+            client:disconnect()
+        end
+        clients = {}
     end
 end
 

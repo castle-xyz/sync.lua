@@ -59,7 +59,7 @@ function sync.newClient(props)
 end
 
 
--- Initialization
+-- Initialization, disconnection
 
 function Common:init(props)
     -- Each of these tables is a 'set' of the form `t[k.__id] = k` for all `k` in the set
@@ -87,6 +87,11 @@ function Client:init(props)
     self.host = enet.host_create()
     self.host:bandwidth_limit(BANDWIDTH_LIMIT, BANDWIDTH_LIMIT)
     self.serverPeer = self.host:connect(props.address)
+end
+
+function Client:disconnect()
+    self.serverPeer:disconnect()
+    self.host:flush()
 end
 
 
@@ -303,7 +308,7 @@ end
 
 defRpc('receiveControllerCall')
 function Server:receiveControllerCall(peer, methodName, ...)
-    local controller = assert(self.controllers[peer:connect_id()], "no controller for this `peer`")
+    local controller = assert(self.controllers[peer], "no controller for this `peer`")
     local method = assert(controller[methodName], "controller has no method '" .. methodName .. "'")
     method(controller, ...)
 end
@@ -328,10 +333,9 @@ function Client:receiveControllerId(peer, controllerId)
 end
 
 function Server:didConnect(peer)
-    local clientId = peer:connect_id()
-    assert(not self.controllers[clientId], "`clientId` clash")
-    local controller = self:spawn(self.controllerTypeName, { __clientId = clientId })
-    self.controllers[clientId] = controller
+    assert(not self.controllers[peer], "controller for `peer` already exists")
+    local controller = self:spawn(self.controllerTypeName)
+    self.controllers[peer] = controller
     self:sendSyncs(peer, self.all)
     peer:send(rpcToData('receiveControllerId', controller.__id))
 end
@@ -340,9 +344,9 @@ function Client:didConnect()
 end
 
 function Server:didDisconnect(peer)
-    local clientId = peer:connect_id()
-    assert(self.controllers[clientId], "no controller for this `peer`")
-    -- TODO(nikki): Despawn
+    local controller = assert(self.controllers[peer], "no controller for this `peer`")
+    self.controllers[peer] = nil
+    self:despawn(controller)
 end
 
 function Client:didDisconnect()
