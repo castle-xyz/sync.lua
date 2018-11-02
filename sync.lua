@@ -7,7 +7,7 @@ local bitser = require 'bitser'
 
 local BANDWIDTH_LIMIT = 0 -- Bandwidth limit in bytes per second -- 0 for unlimited
 
-local DESPAWNED = '__DESPAWNED' -- Sentinel value to communicate despawned entities
+local DESPAWNED = true -- Sentinel for despawned entities -- `true` is a single byte when bitser'd
 
 
 -- Ids
