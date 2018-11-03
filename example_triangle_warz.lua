@@ -31,17 +31,26 @@ local Triangle = sync.registerType('Triangle')
 
 function Triangle:didSpawn()
     self.x, self.y = math.random(10, W - 10), math.random(10, H - 10)
-    self.targetX, self.targetY = math.random(0, W), math.random(0, H)
     self.vx, self.vy = 0, 0
+    self.targetX, self.targetY = math.random(0, W), math.random(0, H)
+    self.shootCountdown = 0 -- Seconds till we can shoot again
+    self.isShooting = false
 end
 
 function Triangle:update(dt)
-    if self.vx ~= 0 or self.vy ~= 0 then -- Don't sync unnecessarily
+    if self.vx ~= 0 or self.vy ~= 0 then
         self.x = self.x + self.vx * dt
         self.y = self.y + self.vy * dt
         self.x = math.max(0, math.min(self.x, W))
         self.y = math.max(0, math.min(self.y, H))
         self.__mgr:sync(self)
+    end
+
+    if self.shootCountdown > 0 then
+        self.shootCountdown = self.shootCountdown - dt
+    end
+    if self.shootCountdown <= 0 and self.isShooting then
+        self:shoot()
     end
 end
 
@@ -53,7 +62,7 @@ function Triangle:draw(isOwn)
             love.graphics.setColor(0.996, 0.373, 0.333)
         end
         love.graphics.translate(self.x, self.y)
-        love.graphics.rotate(self:getAngle())
+        love.graphics.rotate(math.atan2(self.targetY - self.y, self.targetX - self.x))
         love.graphics.polygon('fill', -20, 20, 30, 0, -20, -20)
     end)
 end
@@ -63,17 +72,60 @@ function Triangle:setTarget(x, y)
     self.__mgr:sync(self)
 end
 
+function Triangle:setShooting(isShooting)
+    self.isShooting = isShooting
+end
+
+function Triangle:shoot()
+    if self.shootCountdown <= 0 then
+        local dirX, dirY = self.targetX - self.x, self.targetY - self.y
+        if dirX == 0 and dirY == 0 then dirX = 1 end -- Prevent division by zero
+        local dirLen = math.sqrt(dirX * dirX + dirY * dirY)
+        dirX, dirY = dirX / dirLen, dirY / dirLen
+        self.__mgr:spawn('Bullet', self.x + 30 * dirX, self.y + 30 * dirY, dirX, dirY)
+        self.shootCountdown = 0.2
+    end
+end
+
 function Triangle:setWalkState(up, down, left, right)
     self.vx, self.vy = 0, 0
     if left then self.vx = self.vx - 220 end
     if right then self.vx = self.vx + 220 end
     if up then self.vy = self.vy - 220 end
     if down then self.vy = self.vy + 220 end
+    local v = math.sqrt(self.vx * self.vx + self.vy * self.vy)
+    if v > 0 then -- Limit speed
+        self.vx, self.vy = 220 * self.vx / v, 220 * self.vy / v
+    end
     self.__mgr:sync(self)
 end
 
-function Triangle:getAngle()
-    return math.atan2(self.targetY - self.y, self.targetX - self.x)
+
+
+-- Bullet
+
+local Bullet = sync.registerType('Bullet')
+
+function Bullet:didSpawn(x, y, dirX, dirY)
+    self.x, self.y, self.vx, self.vy = x, y, 800 * dirX, 800 * dirY
+end
+
+function Bullet:update(dt)
+    self.x, self.y = self.x + self.vx * dt, self.y + self.vy * dt
+    if self.x < 0 or self.x > W or self.y < 0 or self.y > H then
+        self.__mgr:despawn(self)
+    else
+        self.__mgr:sync(self)
+    end
+end
+
+function Bullet:draw()
+    love.graphics.stacked('all', function()
+        love.graphics.setColor(0.902, 0.204, 0.384)
+        love.graphics.translate(self.x, self.y)
+        love.graphics.rotate(math.atan2(self.vy, self.vx))
+        love.graphics.ellipse('fill', 0, 0, 18, 2)
+    end)
 end
 
 
@@ -97,6 +149,12 @@ end
 function Controller:setTarget(x, y)
     if self.triangle then
         self.triangle:setTarget(x, y)
+    end
+end
+
+function Controller:setShooting(isShooting)
+    if self.triangle then
+        self.triangle:setShooting(isShooting)
     end
 end
 
@@ -138,15 +196,33 @@ function love.mousemoved(x, y)
     end
 end
 
+local function mouseEvent(button)
+    if client and client.controller then
+        if button == 1 then
+            client.controller:setShooting(love.mouse.isDown(1) or love.keyboard.isDown('space'))
+        end
+    end
+end
+
+function love.mousepressed(x, y, button)
+    mouseEvent(button)
+end
+
+function love.mousereleased(x, y, button)
+    mouseEvent(button)
+end
+
 local function keyEvent(k) -- Common key event handler
     if client and client.controller then
-        -- WASD
         if k == 'w' or k == 'a' or k == 's' or k == 'd' then
             client.controller:setWalkState(
                 love.keyboard.isDown('w'),
                 love.keyboard.isDown('s'),
                 love.keyboard.isDown('a'),
                 love.keyboard.isDown('d'))
+        end
+        if k == 'space' then
+            client.controller:setShooting(love.mouse.isDown(1) or love.keyboard.isDown('space'))
         end
     end
 end
@@ -196,6 +272,13 @@ function love.draw()
                     if ent ~= ownTriangle then
                         ent:draw(false)
                     end
+                end
+            end
+
+            -- Draw bullets
+            for _, ent in pairs(client.all) do
+                if ent.__typeName == 'Bullet' then
+                    ent:draw()
                 end
             end
         else
