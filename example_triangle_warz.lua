@@ -152,7 +152,9 @@ function Triangle:shoot()
         if dirX == 0 and dirY == 0 then dirX = 1 end -- Prevent division by zero
         local dirLen = math.sqrt(dirX * dirX + dirY * dirY)
         dirX, dirY = dirX / dirLen, dirY / dirLen
-        self.__mgr:spawn('Bullet', self.__id, self.x + 30 * dirX, self.y + 30 * dirY, dirX, dirY)
+        self.__mgr:spawn('Bullet', self.__id,
+            self.x + 30 * dirX, self.y + 30 * dirY, dirX, dirY,
+            1.5 * self.r, 1.5 * self.g, 1.5 * self.b)
         self.shootCountdown = 0.2
     end
 end
@@ -176,14 +178,21 @@ end
 
 local Bullet = sync.registerType('Bullet')
 
-function Bullet:didSpawn(ownerId, x, y, dirX, dirY)
+function Bullet:didSpawn(ownerId, x, y, dirX, dirY, r, g, b)
     self.ownerId = ownerId
     self.x, self.y, self.dirX, self.dirY = x, y, dirX, dirY
+    self.r, self.g, self.b = r, g, b
+    self.lifetime = 1
 end
 
 function Bullet:update(dt)
     self.x, self.y = self.x + 800 * self.dirX * dt, self.y + 800 * self.dirY * dt
-    if self.x < 0 or self.x > W or self.y < 0 or self.y > H then
+    if self.x < 0 then self.x = self.x + W end
+    if self.x > W then self.x = self.x - W end
+    if self.y < 0 then self.y = self.y + H end
+    if self.y > H then self.y = self.y - H end
+    self.lifetime = self.lifetime - dt
+    if self.lifetime <= 0 then
         self.__mgr:despawn(self)
     else
         self.__mgr:sync(self)
@@ -192,10 +201,13 @@ end
 
 function Bullet:draw()
     love.graphics.stacked('all', function()
-        love.graphics.setColor(1, 0.6, 0.7)
+        love.graphics.setColor(self.r, self.g, self.b)
         love.graphics.translate(self.x, self.y)
         love.graphics.rotate(math.atan2(self.dirY, self.dirX))
         love.graphics.ellipse('fill', 0, 0, 24, 1)
+        love.graphics.setColor(1, 1, 1, 0.38)
+        love.graphics.setLineWidth(0.3)
+        love.graphics.ellipse('line', 0, 0, 24, 1)
     end)
 end
 
@@ -389,9 +401,13 @@ function love.draw()
                 love.graphics.print([[
 
 
+
 move with W, A, S, D
 aim with mouse
 shoot with left mouse button or SPACE
+
+don't worry, your own lasers can't hurt you
+
 
 press ENTER to connect]], 20, 20)
             end
