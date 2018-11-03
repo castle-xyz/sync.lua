@@ -43,9 +43,9 @@ function Triangle:didSpawn()
     self.r, self.g, self.b = unpack(table.remove(availableTriangleColors))
     self.x, self.y = math.random(10, W - 10), math.random(10, H - 10)
     self.vx, self.vy = 0, 0
-    self.targetX, self.targetY = math.random(0, W), math.random(0, H)
+    self.targetX, self.targetY = math.random(0, W), math.random(0, H) -- Where are we looking?
     self.shootCountdown = 0 -- Seconds till we can shoot again
-    self.isShooting = false
+    self.wantToShoot = false
     self.health = 100
     self.score = 0
 end
@@ -66,45 +66,44 @@ function Triangle:update(dt)
     if self.shootCountdown > 0 then
         self.shootCountdown = self.shootCountdown - dt
     end
-    if self.shootCountdown <= 0 and self.isShooting then
+    if self.shootCountdown <= 0 and self.wantToShoot then
         self:shoot()
     end
 
-    do -- Iterate through `Bullet`s and check for collision
-        local nang = -math.atan2(self.targetY - self.y, self.targetX - self.x)
-        local sin, cos = math.sin(nang), math.cos(nang)
-        for _, ent in pairs(self.__mgr.all) do
-            if ent.__typeName == 'Bullet' and ent.ownerId ~= self.__id then
-                local dx, dy = ent.x - self.x, ent.y - self.y
-                local hit = false
-                if dx * dx + dy * dy < 3600 then
-                    for i = -1, 1, 0.2 do
-                        local bx, by = ent.x + 18 * i * ent.dirX, ent.y + 18 * i * ent.dirY
-                        local dx, dy = bx - self.x, by - self.y
-                        local rdx, rdy = dx * cos - dy * sin, dx * sin + dy * cos
-                        if rdx > -20 then
-                            rdx = rdx + 20
-                            rdy = math.abs(rdy)
-                            if rdx / 50 + rdy / 20 < 1 then
-                                hit = true
-                                break
-                            end
+    -- Iterate through `Bullet`s and check for collision
+    local nang = -math.atan2(self.targetY - self.y, self.targetX - self.x)
+    local sin, cos = math.sin(nang), math.cos(nang)
+    for _, ent in pairs(self.__mgr.all) do
+        if ent.__typeName == 'Bullet' and ent.ownerId ~= self.__id then
+            local dx, dy = ent.x - self.x, ent.y - self.y
+            local hit = false
+            if dx * dx + dy * dy < 3600 then -- Ignore if far
+                for i = -1, 1, 0.2 do -- Check a few points to prevent 'tunneling'
+                    local bx, by = ent.x + 18 * i * ent.dirX, ent.y + 18 * i * ent.dirY
+                    local dx, dy = bx - self.x, by - self.y
+                    local rdx, rdy = dx * cos - dy * sin, dx * sin + dy * cos
+                    if rdx > -20 then
+                        rdx = rdx + 20
+                        rdy = math.abs(rdy)
+                        if rdx / 50 + rdy / 20 < 1 then
+                            hit = true
+                            break
                         end
                     end
                 end
-                if hit then -- We got shot!
-                    self.__mgr:despawn(ent)
-                    self.health = self.health - 5
-                    if self.health <= 0 then
-                        self.health = 100
-                        self.x, self.y = math.random(10, W - 10), math.random(10, H - 10)
-                        local shooter = self.__mgr.all[ent.ownerId]
-                        if shooter then
-                            shooter.score = shooter.score + 1
-                        end
+            end
+            if hit then -- We got shot!
+                self.__mgr:despawn(ent)
+                self.health = self.health - 5
+                if self.health <= 0 then -- We died! 'Respawn' and increment shooter's score
+                    self.health = 100
+                    self.x, self.y = math.random(10, W - 10), math.random(10, H - 10)
+                    local shooter = self.__mgr.all[ent.ownerId]
+                    if shooter then
+                        shooter.score = shooter.score + 1
                     end
-                    self.__mgr:sync(self)
                 end
+                self.__mgr:sync(self)
             end
         end
     end
@@ -114,6 +113,7 @@ function Triangle:draw(isOwn)
     love.graphics.stacked('all', function()
         love.graphics.translate(self.x, self.y)
 
+        -- Draw triangle, with special white outline if it's our own
         love.graphics.stacked('all', function()
             love.graphics.setColor(self.r, self.g, self.b)
             love.graphics.rotate(math.atan2(self.targetY - self.y, self.targetX - self.x))
@@ -125,6 +125,7 @@ function Triangle:draw(isOwn)
             end
         end)
 
+        -- Draw health bar
         love.graphics.stacked('all', function()
             love.graphics.setColor(0, 0, 0, 0.5)
             love.graphics.rectangle('fill', -20, -35, 40, 4)
@@ -139,8 +140,8 @@ function Triangle:setTarget(x, y)
     self.__mgr:sync(self)
 end
 
-function Triangle:setShooting(isShooting)
-    self.isShooting = isShooting
+function Triangle:setWantToShoot(wantToShoot)
+    self.wantToShoot = wantToShoot
 end
 
 function Triangle:shoot()
@@ -154,7 +155,7 @@ function Triangle:shoot()
     end
 end
 
-function Triangle:setWalkState(up, down, left, right)
+function Triangle:setWantToWalk(up, down, left, right)
     self.vx, self.vy = 0, 0
     if left then self.vx = self.vx - 220 end
     if right then self.vx = self.vx + 220 end
@@ -198,7 +199,7 @@ end
 
 
 
--- Controller -- one of these is spawned automatically by the system per client that connects, and
+-- Controller -- one of these is spawned automatically by the system per client that connects and
 -- is despawned on disconnect
 
 local Controller = sync.registerType('Controller')
@@ -220,15 +221,15 @@ function Controller:setTarget(x, y)
     end
 end
 
-function Controller:setShooting(isShooting)
+function Controller:setWantToShoot(wantToShoot)
     if self.triangle then
-        self.triangle:setShooting(isShooting)
+        self.triangle:setWantToShoot(wantToShoot)
     end
 end
 
-function Controller:setWalkState(up, down, left, right)
+function Controller:setWantToWalk(up, down, left, right)
     if self.triangle then
-        self.triangle:setWalkState(up, down, left, right)
+        self.triangle:setWantToWalk(up, down, left, right)
     end
 end
 
@@ -264,10 +265,10 @@ function love.mousemoved(x, y)
     end
 end
 
-local function mouseEvent(button)
+local function mouseEvent(button) -- Common mouse event handler
     if client and client.controller then
         if button == 1 then
-            client.controller:setShooting(love.mouse.isDown(1) or love.keyboard.isDown('space'))
+            client.controller:setWantToShoot(love.mouse.isDown(1) or love.keyboard.isDown('space'))
         end
     end
 end
@@ -283,14 +284,14 @@ end
 local function keyEvent(k) -- Common key event handler
     if client and client.controller then
         if k == 'w' or k == 'a' or k == 's' or k == 'd' then
-            client.controller:setWalkState(
+            client.controller:setWantToWalk(
                 love.keyboard.isDown('w'),
                 love.keyboard.isDown('s'),
                 love.keyboard.isDown('a'),
                 love.keyboard.isDown('d'))
         end
         if k == 'space' then
-            client.controller:setShooting(love.mouse.isDown(1) or love.keyboard.isDown('space'))
+            client.controller:setWantToShoot(love.mouse.isDown(1) or love.keyboard.isDown('space'))
         end
     end
 end
@@ -369,7 +370,7 @@ function love.draw()
                         end
                     end
                 end)
-            else
+            else -- Show connection instructions if no client
                 love.graphics.setColor(1, 1, 1)
                 if server then
                     love.graphics.print('server running', 20, 20)
