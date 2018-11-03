@@ -299,13 +299,13 @@ end
 function love.keypressed(k)
     -- Spawn server or client instances as the user asks. The server needs to know the name of our
     -- `Controller` type.
-    if k == '1' then
+    if k == '0' then
         server = sync.newServer {
             address = '*:22122',
             controllerTypeName = 'Controller',
         }
     end
-    if k == '2' then
+    if k == 'return' then
         client = sync.newClient { address = SERVER_ADDRESS .. ':22122' }
     end
 
@@ -382,15 +382,16 @@ function love.draw()
                 if server then
                     love.graphics.print('server running', 20, 20)
                 else
-                    love.graphics.print('press 1 to start a server', 20, 20)
+                    love.graphics.print('welcome to triangle warz', 20, 20)
                 end
                 love.graphics.print([[
 
-press 2 to connect to server
 
 move with W, A, S, D
 aim with mouse
-shoot with left mouse button or SPACE]], 20, 20)
+shoot with left mouse button or SPACE
+
+press ENTER to connect]], 20, 20)
             end
         end)
     end)
