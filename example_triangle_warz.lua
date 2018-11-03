@@ -101,6 +101,15 @@ function love.draw()
         if ownTriangle then
             ownTriangle:draw(true)
         end
+
+        -- Draw everyone else's triangles
+        for _, ent in pairs(client.all) do
+            if ent.__typeName == 'Triangle' then
+                if ent ~= ownTriangle then
+                    ent:draw(false)
+                end
+            end
+        end
     end
 end
 
