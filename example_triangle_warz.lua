@@ -1,5 +1,8 @@
 local sync = require 'sync'
 
+-- Moonshine is a post-processing effects library, see https://github.com/nikki93/moonshine
+local moonshine = require 'https://raw.githubusercontent.com/nikki93/moonshine/9e04869e3ceaa76c42a69c52a954ea7f6af0469c/init.lua'
+
 
 
 -- Constants
@@ -186,10 +189,10 @@ end
 
 function Bullet:draw()
     love.graphics.stacked('all', function()
-        love.graphics.setColor(0.902, 0.204, 0.384)
+        love.graphics.setColor(1, 0.6, 0.7)
         love.graphics.translate(self.x, self.y)
         love.graphics.rotate(math.atan2(self.dirY, self.dirX))
-        love.graphics.ellipse('fill', 0, 0, 18, 2)
+        love.graphics.ellipse('fill', 0, 0, 24, 1)
     end)
 end
 
@@ -316,61 +319,66 @@ end
 
 -- Top-level drawing
 
+local effect = moonshine(moonshine.effects.glow).chain(moonshine.effects.vignette)
+effect.glow.strength = 2
+
 function love.draw()
-    love.graphics.stacked('all', function()
-        local ox, oy = 0.5 * (love.graphics.getWidth() - W), 0.5 * (love.graphics.getHeight() - H)
-        love.graphics.setScissor(ox, oy, W, H)
-        love.graphics.translate(ox, oy)
+    effect(function()
+        love.graphics.stacked('all', function()
+            local ox, oy = 0.5 * (love.graphics.getWidth() - W), 0.5 * (love.graphics.getHeight() - H)
+            love.graphics.setScissor(ox, oy, W, H)
+            love.graphics.translate(ox, oy)
 
-        love.graphics.clear(0.2, 0.216, 0.271)
+            love.graphics.clear(0.2, 0.216, 0.271)
 
-        if client and client.controller then
-            -- Draw our own triangle
-            local ownTriangle = client.controller.triangle
-            if ownTriangle then
-                ownTriangle:draw(true)
-            end
-
-            -- Draw everyone else's triangles
-            for _, ent in pairs(client.all) do
-                if ent.__typeName == 'Triangle' then
-                    if ent ~= ownTriangle then
-                        ent:draw(false)
-                    end
+            if client and client.controller then
+                -- Draw our own triangle
+                local ownTriangle = client.controller.triangle
+                if ownTriangle then
+                    ownTriangle:draw(true)
                 end
-            end
 
-            -- Draw bullets
-            for _, ent in pairs(client.all) do
-                if ent.__typeName == 'Bullet' then
-                    ent:draw()
-                end
-            end
-
-            -- Draw scores
-            love.graphics.stacked('all', function()
-                love.graphics.setColor(1, 1, 1)
-                local scoreY = 20
+                -- Draw everyone else's triangles
                 for _, ent in pairs(client.all) do
                     if ent.__typeName == 'Triangle' then
-                        love.graphics.stacked('all', function()
-                            love.graphics.setColor(ent.r, ent.g, ent.b)
-                            love.graphics.rectangle('fill', 20, scoreY, 12, 12)
-                        end)
-                        love.graphics.print(ent.score, 42, scoreY)
-                        scoreY = scoreY + 16
+                        if ent ~= ownTriangle then
+                            ent:draw(false)
+                        end
                     end
                 end
-            end)
-        else
-            love.graphics.setColor(1, 1, 1)
-            if server then
-                love.graphics.print('server running', 20, 20)
+
+                -- Draw bullets
+                for _, ent in pairs(client.all) do
+                    if ent.__typeName == 'Bullet' then
+                        ent:draw()
+                    end
+                end
+
+                -- Draw scores
+                love.graphics.stacked('all', function()
+                    love.graphics.setColor(1, 1, 1)
+                    local scoreY = 20
+                    for _, ent in pairs(client.all) do
+                        if ent.__typeName == 'Triangle' then
+                            love.graphics.stacked('all', function()
+                                love.graphics.setColor(ent.r, ent.g, ent.b)
+                                love.graphics.rectangle('fill', 20, scoreY, 12, 12)
+                            end)
+                            love.graphics.print(ent.score, 42, scoreY)
+                            scoreY = scoreY + 16
+                        end
+                    end
+                end)
             else
-                love.graphics.print('press 1 to start a server', 20, 20)
+                love.graphics.setColor(1, 1, 1)
+                if server then
+                    love.graphics.print('server running', 20, 20)
+                else
+                    love.graphics.print('press 1 to start a server', 20, 20)
+                end
+                love.graphics.print('\npress 2 to connect to server', 20, 20)
             end
-            love.graphics.print('\npress 2 to connect to server', 20, 20)
-        end
+        end)
     end)
 end
 
