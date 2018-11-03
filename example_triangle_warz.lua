@@ -102,6 +102,7 @@ function Triangle:update(dt)
                     local shooter = self.__mgr.all[ent.ownerId]
                     if shooter then
                         shooter.score = shooter.score + 1
+                        self.__mgr:sync(shooter)
                     end
                 end
                 self.__mgr:sync(self)
