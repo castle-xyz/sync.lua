@@ -40,7 +40,8 @@ local availableTriangleColors = {
 }
 
 function Triangle:didSpawn()
-    self.r, self.g, self.b = unpack(table.remove(availableTriangleColors))
+    self.r, self.g, self.b = unpack(table.remove(availableTriangleColors) or
+            { 0.2 + 0.8 * math.random(), 0.2 + 0.8 * math.random(), 0.2 + 0.8 * math.random() })
     self.x, self.y = math.random(10, W - 10), math.random(10, H - 10)
     self.vx, self.vy = 0, 0
     self.targetX, self.targetY = math.random(0, W), math.random(0, H) -- Where are we looking?
