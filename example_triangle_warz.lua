@@ -29,12 +29,26 @@ end
 
 local Triangle = sync.registerType('Triangle')
 
+local availableTriangleColors = {
+    { 0.965, 0.961, 0.682 },
+    { 0.961, 0.969, 0.286 },
+    { 0.996, 0.373, 0.333 },
+    { 0.18, 0.525, 0.671 },
+}
+
 function Triangle:didSpawn()
+    self.r, self.g, self.b = unpack(table.remove(availableTriangleColors))
     self.x, self.y = math.random(10, W - 10), math.random(10, H - 10)
     self.vx, self.vy = 0, 0
     self.targetX, self.targetY = math.random(0, W), math.random(0, H)
     self.shootCountdown = 0 -- Seconds till we can shoot again
     self.isShooting = false
+    self.health = 100
+    self.score = 0
+end
+
+function Triangle:willDespawn()
+    table.insert(availableTriangleColors, { self.r, self.g, self.b })
 end
 
 function Triangle:update(dt)
@@ -52,18 +66,68 @@ function Triangle:update(dt)
     if self.shootCountdown <= 0 and self.isShooting then
         self:shoot()
     end
+
+    do -- Iterate through `Bullet`s and check for collision
+        local nang = -math.atan2(self.targetY - self.y, self.targetX - self.x)
+        local sin, cos = math.sin(nang), math.cos(nang)
+        for _, ent in pairs(self.__mgr.all) do
+            if ent.__typeName == 'Bullet' and ent.ownerId ~= self.__id then
+                local dx, dy = ent.x - self.x, ent.y - self.y
+                local hit = false
+                if dx * dx + dy * dy < 3600 then
+                    for i = -1, 1, 0.2 do
+                        local bx, by = ent.x + 18 * i * ent.dirX, ent.y + 18 * i * ent.dirY
+                        local dx, dy = bx - self.x, by - self.y
+                        local rdx, rdy = dx * cos - dy * sin, dx * sin + dy * cos
+                        if rdx > -20 then
+                            rdx = rdx + 20
+                            rdy = math.abs(rdy)
+                            if rdx / 50 + rdy / 20 < 1 then
+                                hit = true
+                                break
+                            end
+                        end
+                    end
+                end
+                if hit then -- We got shot!
+                    self.__mgr:despawn(ent)
+                    self.health = self.health - 5
+                    if self.health <= 0 then
+                        self.health = 100
+                        self.x, self.y = math.random(10, W - 10), math.random(10, H - 10)
+                        local shooter = self.__mgr.all[ent.ownerId]
+                        if shooter then
+                            shooter.score = shooter.score + 1
+                        end
+                    end
+                    self.__mgr:sync(self)
+                end
+            end
+        end
+    end
 end
 
 function Triangle:draw(isOwn)
     love.graphics.stacked('all', function()
-        if isOwn then
-            love.graphics.setColor(0.78, 0.937, 0.812)
-        else
-            love.graphics.setColor(0.996, 0.373, 0.333)
-        end
         love.graphics.translate(self.x, self.y)
-        love.graphics.rotate(math.atan2(self.targetY - self.y, self.targetX - self.x))
-        love.graphics.polygon('fill', -20, 20, 30, 0, -20, -20)
+
+        love.graphics.stacked('all', function()
+            love.graphics.setColor(self.r, self.g, self.b)
+            love.graphics.rotate(math.atan2(self.targetY - self.y, self.targetX - self.x))
+            love.graphics.polygon('fill', -20, 20, 30, 0, -20, -20)
+            if isOwn then
+                love.graphics.setColor(1, 1, 1, 0.8)
+                love.graphics.setLineWidth(3)
+                love.graphics.polygon('line', -20, 20, 30, 0, -20, -20)
+            end
+        end)
+
+        love.graphics.stacked('all', function()
+            love.graphics.setColor(0, 0, 0, 0.5)
+            love.graphics.rectangle('fill', -20, -35, 40, 4)
+            love.graphics.setColor(0.933, 0.961, 0.859, 0.5)
+            love.graphics.rectangle('fill', -20, -35, self.health / 100 * 40, 4)
+        end)
     end)
 end
 
@@ -82,7 +146,7 @@ function Triangle:shoot()
         if dirX == 0 and dirY == 0 then dirX = 1 end -- Prevent division by zero
         local dirLen = math.sqrt(dirX * dirX + dirY * dirY)
         dirX, dirY = dirX / dirLen, dirY / dirLen
-        self.__mgr:spawn('Bullet', self.x + 30 * dirX, self.y + 30 * dirY, dirX, dirY)
+        self.__mgr:spawn('Bullet', self.__id, self.x + 30 * dirX, self.y + 30 * dirY, dirX, dirY)
         self.shootCountdown = 0.2
     end
 end
@@ -106,12 +170,13 @@ end
 
 local Bullet = sync.registerType('Bullet')
 
-function Bullet:didSpawn(x, y, dirX, dirY)
-    self.x, self.y, self.vx, self.vy = x, y, 800 * dirX, 800 * dirY
+function Bullet:didSpawn(ownerId, x, y, dirX, dirY)
+    self.ownerId = ownerId
+    self.x, self.y, self.dirX, self.dirY = x, y, dirX, dirY
 end
 
 function Bullet:update(dt)
-    self.x, self.y = self.x + self.vx * dt, self.y + self.vy * dt
+    self.x, self.y = self.x + 800 * self.dirX * dt, self.y + 800 * self.dirY * dt
     if self.x < 0 or self.x > W or self.y < 0 or self.y > H then
         self.__mgr:despawn(self)
     else
@@ -123,7 +188,7 @@ function Bullet:draw()
     love.graphics.stacked('all', function()
         love.graphics.setColor(0.902, 0.204, 0.384)
         love.graphics.translate(self.x, self.y)
-        love.graphics.rotate(math.atan2(self.vy, self.vx))
+        love.graphics.rotate(math.atan2(self.dirY, self.dirX))
         love.graphics.ellipse('fill', 0, 0, 18, 2)
     end)
 end
@@ -281,6 +346,22 @@ function love.draw()
                     ent:draw()
                 end
             end
+
+            -- Draw scores
+            love.graphics.stacked('all', function()
+                love.graphics.setColor(1, 1, 1)
+                local scoreY = 20
+                for _, ent in pairs(client.all) do
+                    if ent.__typeName == 'Triangle' then
+                        love.graphics.stacked('all', function()
+                            love.graphics.setColor(ent.r, ent.g, ent.b)
+                            love.graphics.rectangle('fill', 20, scoreY, 12, 12)
+                        end)
+                        love.graphics.print(ent.score, 42, scoreY)
+                        scoreY = scoreY + 16
+                    end
+                end
+            end)
         else
             love.graphics.setColor(1, 1, 1)
             if server then
