@@ -381,6 +381,10 @@ function love.draw()
                         scoreY = scoreY + 16
                     end
                 end)
+
+                -- Draw fps and latency
+                love.graphics.print('fps:  ' .. love.timer.getFPS(), 20, H - 52)
+                love.graphics.print('ping: ' .. client.serverPeer:round_trip_time(), 20, H - 36)
             else -- Show connection instructions if no client
                 love.graphics.setColor(1, 1, 1)
                 if server then
@@ -388,7 +392,13 @@ function love.draw()
                 else
                     love.graphics.print('press 1 to start a server', 20, 20)
                 end
-                love.graphics.print('\npress 2 to connect to server', 20, 20)
+                love.graphics.print([[
+
+press 2 to connect to server
+
+move with W, A, S, D
+aim with mouse
+shoot with left mouse button or SPACE]], 20, 20)
             end
         end)
     end)
