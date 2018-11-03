@@ -64,10 +64,7 @@ function Triangle:draw(isOwn)
         end
         love.graphics.translate(self.x, self.y)
         love.graphics.rotate(self:getAngle())
-        love.graphics.polygon('fill',
-            -20, 20,
-            30, 0,
-            -20, -20)
+        love.graphics.polygon('fill', -20, 20, 30, 0, -20, -20)
     end)
 end
 
