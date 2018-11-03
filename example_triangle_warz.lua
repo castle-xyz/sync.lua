@@ -95,22 +95,38 @@ function love.update(dt)
 end
 
 function love.draw()
-    if client and client.controller then
-        -- Draw our own triangle
-        local ownTriangle = client.controller.triangle
-        if ownTriangle then
-            ownTriangle:draw(true)
-        end
+    love.graphics.stacked('all', function()
+        local ox, oy = 0.5 * (love.graphics.getWidth() - W), 0.5 * (love.graphics.getHeight() - H)
+        love.graphics.setScissor(ox, oy, W, H)
+        love.graphics.translate(ox, oy)
 
-        -- Draw everyone else's triangles
-        for _, ent in pairs(client.all) do
-            if ent.__typeName == 'Triangle' then
-                if ent ~= ownTriangle then
-                    ent:draw(false)
+        love.graphics.clear(0.2, 0.216, 0.271)
+
+        if client and client.controller then
+            -- Draw our own triangle
+            local ownTriangle = client.controller.triangle
+            if ownTriangle then
+                ownTriangle:draw(true)
+            end
+
+            -- Draw everyone else's triangles
+            for _, ent in pairs(client.all) do
+                if ent.__typeName == 'Triangle' then
+                    if ent ~= ownTriangle then
+                        ent:draw(false)
+                    end
                 end
             end
+        else
+            love.graphics.setColor(1, 1, 1)
+            if server then
+                love.graphics.print('server running', 20, 20)
+            else
+                love.graphics.print('press 1 to start a server', 20, 20)
+            end
+            love.graphics.print('\npress 2 to connect to server', 20, 20)
         end
-    end
+    end)
 end
 
 function love.keypressed(k)
