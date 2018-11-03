@@ -59,8 +59,10 @@ function Triangle:update(dt)
     if self.vx ~= 0 or self.vy ~= 0 then
         self.x = self.x + self.vx * dt
         self.y = self.y + self.vy * dt
-        self.x = math.max(0, math.min(self.x, W))
-        self.y = math.max(0, math.min(self.y, H))
+        if self.x < 0 then self.x = self.x + W end
+        if self.x > W then self.x = self.x - W end
+        if self.y < 0 then self.y = self.y + H end
+        if self.y > H then self.y = self.y - H end
         self.__mgr:sync(self)
     end
 
