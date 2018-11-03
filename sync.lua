@@ -202,7 +202,11 @@ function Client:sync(ent)
 end
 
 function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all connected peers
-    -- Unset `__local` and `__mgr` so they aren't sync'd, then reset
+    if not next(syncs) then -- Empty?
+        return
+    end
+
+    -- Unset `__local` and `__mgr` so they aren't sent, then restore
     local locals = {}
     for _, sync in pairs(syncs) do
         if sync ~= DESPAWNED then
@@ -211,7 +215,7 @@ function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all conn
             sync.__local = nil
         end
     end
-    local data = rpcToData('receiveSyncs', bitser.dumps(syncs)) -- TODO(nikki): Convert
+    local data = rpcToData('receiveSyncs', bitser.dumps(syncs)) -- TODO(nikki): `:getSync()` event
     for _, sync in pairs(syncs) do
         if sync ~= DESPAWNED then
             sync.__mgr = self
@@ -232,18 +236,19 @@ function Client:receiveSyncs(peer, syncs)
 end
 
 function Common:applyReceivedSyncs()
-    -- Our bitser fork uses this to deserialize entity references
-    local unsyncedRefs = {} -- Newly constructed entities that haven't received a sync yet
-    function __DESERIALIZE_ENTITY_REF(id, typeId)
+    -- New entities may be constructed while sync'ing
+    local unsyncedEnts = {} -- New entities that haven't received a sync yet -- verify later
+    local function getOrConstruct(id, typeId)
         local ent = self.all[id]
         if not ent then
             ent = self:construct(typeIdToName[typeId])
             ent.__id = id
             self.all[id] = ent
-            unsyncedRefs[id] = ent
+            unsyncedEnts[id] = ent
         end
         return ent
     end
+    __DESERIALIZE_ENTITY_REF = getOrConstruct -- bitser calls this to deserialize entity references
 
     -- Collect latest syncs per-entity
     local latestSyncs = {}
@@ -266,8 +271,8 @@ function Common:applyReceivedSyncs()
                 self:destruct(ent)
             end
         else
-            local ent = __DESERIALIZE_ENTITY_REF(id, sync.__typeId)
-            unsyncedRefs[id] = nil
+            local ent = getOrConstruct(id, sync.__typeId)
+            unsyncedEnts[id] = nil
 
             local savedLocal = ent.__local
             local defaultSyncBehavior = true
@@ -291,8 +296,7 @@ function Common:applyReceivedSyncs()
     end
 
     -- Verify references
-    for id, ent in pairs(unsyncedRefs) do
-        self.all[id] = nil
+    for id, ent in pairs(unsyncedEnts) do
         error('received a reference to entity ' .. id .. " of type '" .. ent.__typeName .. "' " ..
                 'but did not receive a sync for it -- make sure to `nil` out references to ' ..
                 'despawned entities')
@@ -320,7 +324,7 @@ end
 
 defRpc('receiveControllerId')
 function Client:receiveControllerId(peer, controllerId)
-    self:applyReceivedSyncs() -- Make sure we've sync'd the controller
+    self:applyReceivedSyncs() -- Make sure we've received the controller
     local controller = self.all[controllerId]
     self.controller = setmetatable({}, {
         __index = function(t, k)
