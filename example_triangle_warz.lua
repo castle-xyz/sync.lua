@@ -33,26 +33,6 @@ end
 
 
 
--- Controller -- one of these is spawned automatically by the system per client that connects, and
--- is despawned on disconnect
-
-local Controller = sync.registerType('Controller')
-
-function Controller:didSpawn()
-    print('a client connected!')
-    self.triangle = self.__mgr:spawn('Triangle')
-end
-
-function Controller:willDespawn()
-    print('a client disconnected!')
-    if self.triangle then
-        self.__mgr:despawn(self.triangle)
-        self.triangle = nil
-    end
-end
-
-
-
 -- Triangle
 
 local Triangle = sync.registerType('Triangle')
@@ -78,6 +58,35 @@ function Triangle:draw(isOwn)
     end)
 end
 
+function Triangle:lookAt(x, y)
+    self.rot = math.atan2(y - self.y, x - self.x)
+    self.__mgr:sync(self)
+end
+
+
+
+-- Controller -- one of these is spawned automatically by the system per client that connects, and
+-- is despawned on disconnect
+
+local Controller = sync.registerType('Controller')
+
+function Controller:didSpawn()
+    self.triangle = self.__mgr:spawn('Triangle')
+end
+
+function Controller:willDespawn()
+    if self.triangle then
+        self.__mgr:despawn(self.triangle)
+        self.triangle = nil
+    end
+end
+
+function Controller:lookAt(x, y)
+    if self.triangle then
+        self.triangle:lookAt(x, y)
+    end
+end
+
 
 
 -- Server / client instances and top-level Love events
@@ -91,6 +100,13 @@ function love.update(dt)
     end
     if client then
         client:process()
+    end
+end
+
+function love.mousemoved(x, y)
+    if client and client.controller then
+        local ox, oy = 0.5 * (love.graphics.getWidth() - W), 0.5 * (love.graphics.getHeight() - H)
+        client.controller:lookAt(x - ox, y - oy)
     end
 end
 
