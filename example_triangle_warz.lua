@@ -333,18 +333,10 @@ function love.draw()
             love.graphics.clear(0.2, 0.216, 0.271)
 
             if client and client.controller then
-                -- Draw our own triangle
-                local ownTriangle = client.controller.triangle
-                if ownTriangle then
-                    ownTriangle:draw(true)
-                end
-
-                -- Draw everyone else's triangles
+                -- Draw triangles
                 for _, ent in pairs(client.all) do
                     if ent.__typeName == 'Triangle' then
-                        if ent ~= ownTriangle then
-                            ent:draw(false)
-                        end
+                        ent:draw(ent == client.controller.triangle) -- Tell if it's our triangle
                     end
                 end
 
