@@ -110,13 +110,12 @@ local function defRpc(name)
 end
 
 local function rpcToData(name, ...)
-    return bitser.dumps({ rpcNameToId[name], ... }) -- TODO(nikki): Allow `nil`s in between
+    return bitser.dumps({ rpcNameToId[name], select('#', ...), ... })
 end
 
 local function dataToRpc(data)
     local t = bitser.loads(data)
-    t[1] = assert(rpcIdToName[t[1]], "invalid rpc id")
-    return unpack(t)
+    return assert(rpcIdToName[t[1]], "invalid rpc id"), unpack(t, 3, t[2] + 2)
 end
 
 function Common:callRpc(peer, name, ...)
