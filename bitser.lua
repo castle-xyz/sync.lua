@@ -30,6 +30,7 @@ local buf = nil
 local writable_buf = nil
 local writable_buf_size = nil
 local depth
+local lenSentinel = {}
 
 local function is_entity(value)
     return type(value) == 'table' and value.__id and value.__typeId
@@ -183,7 +184,7 @@ local function write_table(value, seen)
 
     if depth > 2 and is_entity(value) then --entity reference
         seen[value] = nil
-        seen.len = seen.len - 1
+        seen[lenSentinel] = seen[lenSentinel] - 1
         Buffer_write_byte(251)
         serialize_value(value.__id, seen)
         serialize_value(value.__typeId, seen)
@@ -241,8 +242,8 @@ serialize_value = function(value, seen)
 	end
 	local t = type(value)
 	if t ~= 'number' and t ~= 'boolean' and t ~= 'nil' then
-		seen[value] = seen.len
-		seen.len = seen.len + 1
+		seen[value] = seen[lenSentinel]
+		seen[lenSentinel] = seen[lenSentinel] + 1
 	end
 	if resource_name_registry[value] then
 		local name = resource_name_registry[value]
@@ -264,7 +265,7 @@ end
 
 local function serialize(value)
 	Buffer_makeBuffer(4096)
-	local seen = {len = 0}
+	local seen = {[lenSentinel] = 0}
 	depth = 0
 	serialize_value(value, seen)
 end
