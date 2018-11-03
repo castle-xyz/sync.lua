@@ -355,19 +355,30 @@ function love.draw()
                     end
                 end
 
-                -- Draw scores
+                -- Draw scores in descending order
                 love.graphics.stacked('all', function()
-                    love.graphics.setColor(1, 1, 1)
-                    local scoreY = 20
+                    local scoreOrder = {}
                     for _, ent in pairs(client.all) do
                         if ent.__typeName == 'Triangle' then
-                            love.graphics.stacked('all', function()
-                                love.graphics.setColor(ent.r, ent.g, ent.b)
-                                love.graphics.rectangle('fill', 20, scoreY, 12, 12)
-                            end)
-                            love.graphics.print(ent.score, 42, scoreY)
-                            scoreY = scoreY + 16
+                            table.insert(scoreOrder, ent)
                         end
+                    end
+                    table.sort(scoreOrder, function(e1, e2)
+                        if e1.score == e2.score then
+                            return e1.__id < e2.__id
+                        end
+                        return e1.score > e2.score
+                    end)
+
+                    love.graphics.setColor(1, 1, 1)
+                    local scoreY = 20
+                    for _, ent in ipairs(scoreOrder) do
+                        love.graphics.stacked('all', function()
+                            love.graphics.setColor(ent.r, ent.g, ent.b)
+                            love.graphics.rectangle('fill', 20, scoreY, 12, 12)
+                        end)
+                        love.graphics.print(ent.score, 42, scoreY)
+                        scoreY = scoreY + 16
                     end
                 end)
             else -- Show connection instructions if no client
