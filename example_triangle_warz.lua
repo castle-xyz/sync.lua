@@ -2,7 +2,7 @@ local sync = require 'sync'
 
 -- Constants
 
-local SERVER_ADDRESS = '192.168.1.80'
+local SERVER_ADDRESS = '10.0.1.39'
 
 local W, H = 800, 600
 
