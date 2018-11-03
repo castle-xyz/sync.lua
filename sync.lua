@@ -126,12 +126,12 @@ end
 
 -- Spawning
 
-function Common:construct(typeName, props)
+function Common:construct(typeName, ...)
     local ent
 
     local ty = assert(typesByName[typeName], "no type '" .. typeName .. "'")
     if ty.construct then -- User-defined construction
-        ent = ty:construct(props)
+        ent = ty:construct(...)
     else -- Default construction
         ty.__index = ty
         ent = setmetatable({}, ty)
@@ -141,7 +141,7 @@ function Common:construct(typeName, props)
     ent.__local = {}
 
     if ent.didConstruct then
-        ent:didConstruct(props)
+        ent:didConstruct(...)
     end
     return ent
 end
@@ -154,16 +154,14 @@ function Common:destruct(ent)
     ent.__mgr = nil
 end
 
-function Server:spawn(typeName, props)
-    props = props or {}
-
-    local ent = self:construct(typeName, props)
+function Server:spawn(typeName, ...)
+    local ent = self:construct(typeName, ...)
     ent.__id = genId()
 
     self.all[ent.__id] = ent
 
     if ent.didSpawn then
-        ent:didSpawn(props)
+        ent:didSpawn(...)
     end
     self:sync(ent)
 

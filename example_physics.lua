@@ -80,7 +80,7 @@ function Player:didDestruct()
     end
 end
 
-function Player:didSpawn(props)
+function Player:didSpawn()
     self.__local.body:setPosition(W * math.random(), H * math.random())
     self:fromBody()
 
@@ -145,7 +145,7 @@ end
 
 local Controller = sync.registerType('Controller')
 
-function Controller:didSpawn(props)
+function Controller:didSpawn()
     self.player = self.__mgr:spawn('Player')
     for i = 1, 5 do
         self.__mgr:spawn('Player')
