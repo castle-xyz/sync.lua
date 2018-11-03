@@ -1,5 +1,7 @@
 local sync = require 'sync'
 
+
+
 -- Constants
 
 local SERVER_ADDRESS = '10.0.1.39'
@@ -8,7 +10,7 @@ local W, H = 800, 600
 
 
 
--- Utils
+-- Utilities
 
 -- `love.graphics.stacked([arg], foo)` calls `foo` between `love.graphics.push([arg])` and
 -- `love.graphics.pop()` while being resilient to errors
@@ -39,16 +41,18 @@ local Triangle = sync.registerType('Triangle')
 
 function Triangle:didSpawn()
     self.x, self.y = math.random(10, W - 10), math.random(10, H - 10)
-    self.rot = 0
+    self.targetX, self.targetY = math.random(0, W), math.random(0, H)
     self.vx, self.vy = 0, 0
 end
 
 function Triangle:update(dt)
-    self.x = self.x + self.vx * dt
-    self.y = self.y + self.vy * dt
-    self.x = math.max(0, math.min(self.x, W))
-    self.y = math.max(0, math.min(self.y, H))
-    self.__mgr:sync(self)
+    if self.vx ~= 0 or self.vy ~= 0 then -- Don't sync unnecessarily
+        self.x = self.x + self.vx * dt
+        self.y = self.y + self.vy * dt
+        self.x = math.max(0, math.min(self.x, W))
+        self.y = math.max(0, math.min(self.y, H))
+        self.__mgr:sync(self)
+    end
 end
 
 function Triangle:draw(isOwn)
@@ -59,7 +63,7 @@ function Triangle:draw(isOwn)
             love.graphics.setColor(0.996, 0.373, 0.333)
         end
         love.graphics.translate(self.x, self.y)
-        love.graphics.rotate(self.rot)
+        love.graphics.rotate(self:getAngle())
         love.graphics.polygon('fill',
             -20, 20,
             30, 0,
@@ -67,8 +71,8 @@ function Triangle:draw(isOwn)
     end)
 end
 
-function Triangle:lookAt(x, y)
-    self.rot = math.atan2(y - self.y, x - self.x)
+function Triangle:setTarget(x, y)
+    self.targetX, self.targetY = x, y
     self.__mgr:sync(self)
 end
 
@@ -80,6 +84,11 @@ function Triangle:setWalkState(up, down, left, right)
     if down then self.vy = self.vy + 220 end
     self.__mgr:sync(self)
 end
+
+function Triangle:getAngle()
+    return math.atan2(self.targetY - self.y, self.targetX - self.x)
+end
+
 
 
 -- Controller -- one of these is spawned automatically by the system per client that connects, and
@@ -98,9 +107,9 @@ function Controller:willDespawn()
     end
 end
 
-function Controller:lookAt(x, y)
+function Controller:setTarget(x, y)
     if self.triangle then
-        self.triangle:lookAt(x, y)
+        self.triangle:setTarget(x, y)
     end
 end
 
@@ -111,7 +120,8 @@ function Controller:setWalkState(up, down, left, right)
 end
 
 
--- Server / client instances and top-level Love events
+
+-- Server / client instances and top-level input
 
 local server, client
 
@@ -133,6 +143,50 @@ function love.update(dt)
         client:process()
     end
 end
+
+function love.mousemoved(x, y)
+    if client and client.controller then
+        local ox, oy = 0.5 * (love.graphics.getWidth() - W), 0.5 * (love.graphics.getHeight() - H)
+        client.controller:setTarget(x - ox, y - oy)
+    end
+end
+
+local function keyEvent(k) -- Common key event handler
+    if client and client.controller then
+        -- WASD
+        if k == 'w' or k == 'a' or k == 's' or k == 'd' then
+            client.controller:setWalkState(
+                love.keyboard.isDown('w'),
+                love.keyboard.isDown('s'),
+                love.keyboard.isDown('a'),
+                love.keyboard.isDown('d'))
+        end
+    end
+end
+
+function love.keypressed(k)
+    -- Spawn server or client instances as the user asks. The server needs to know the name of our
+    -- `Controller` type.
+    if k == '1' then
+        server = sync.newServer {
+            address = '*:22122',
+            controllerTypeName = 'Controller',
+        }
+    end
+    if k == '2' then
+        client = sync.newClient { address = SERVER_ADDRESS .. ':22122' }
+    end
+
+    keyEvent(k)
+end
+
+function love.keyreleased(k)
+    keyEvent(k)
+end
+
+
+
+-- Top-level drawing
 
 function love.draw()
     love.graphics.stacked('all', function()
@@ -169,42 +223,3 @@ function love.draw()
     end)
 end
 
-function love.mousemoved(x, y)
-    if client and client.controller then
-        local ox, oy = 0.5 * (love.graphics.getWidth() - W), 0.5 * (love.graphics.getHeight() - H)
-        client.controller:lookAt(x - ox, y - oy)
-    end
-end
-
-local function keyEvent(k) -- Common key event handler
-    if client and client.controller then
-        -- WASD
-        if k == 'w' or k == 'a' or k == 's' or k == 'd' then
-            client.controller:setWalkState(
-                love.keyboard.isDown('w'),
-                love.keyboard.isDown('s'),
-                love.keyboard.isDown('a'),
-                love.keyboard.isDown('d'))
-        end
-    end
-end
-
-function love.keypressed(k)
-    -- Spawn server or client instances as the user asks. The server needs to know the name of our
-    -- `Controller` type.
-    if k == '1' then
-        server = sync.newServer {
-            address = '*:22122',
-            controllerTypeName = 'Controller',
-        }
-    end
-    if k == '2' then
-        client = sync.newClient { address = SERVER_ADDRESS .. ':22122' }
-    end
-
-    keyEvent(k)
-end
-
-function love.keyreleased(k)
-    keyEvent(k)
-end

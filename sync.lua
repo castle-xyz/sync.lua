@@ -71,6 +71,8 @@ end
 function Server:init(props)
     Common.init(self)
 
+    self.isServer, self.isClient = true, false
+
     self.controllerTypeName = assert(props.controllerTypeName,
         "server needs `props.controllerTypeName`")
 
@@ -83,6 +85,8 @@ function Client:init(props)
     Common.init(self)
 
     assert(props.address, "client needs `props.address` to connect to")
+
+    self.isServer, self.isClient = false, true
 
     self.host = enet.host_create()
     self.host:bandwidth_limit(BANDWIDTH_LIMIT, BANDWIDTH_LIMIT)
