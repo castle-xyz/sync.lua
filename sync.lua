@@ -12,8 +12,11 @@ local DESPAWNED = true -- Sentinel for despawned entities -- `true` is a single 
 
 -- Ids
 
-local function genId()
-    return math.random(2 ^ 30)
+local idCounter = 0
+
+local function genId() -- Must be called on server
+    idCounter = idCounter + 1
+    return idCounter
 end
 
 
