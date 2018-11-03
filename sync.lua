@@ -19,14 +19,14 @@ end
 
 -- Types
 
-local typesByName, typeIdToName = {}, {}
+local typeNameToType, typeIdToName = {}, {}
 
 function sync.registerType(typeName, ty)
-    assert(not typesByName[typeName])
+    assert(not typeNameToType[typeName], "type with name '" .. typeName .. "' already registered")
 
     ty = ty or {}
     ty.__typeName = typeName
-    typesByName[typeName] = ty
+    typeNameToType[typeName] = ty
 
     table.insert(typeIdToName, typeName)
     ty.__typeId = #typeIdToName
@@ -104,9 +104,10 @@ end
 local rpcNameToId, rpcIdToName = {}, {}
 
 local function defRpc(name)
-    assert(not rpcNameToId[name])
-    table.insert(rpcIdToName, name)
-    rpcNameToId[name] = #rpcIdToName
+    if not rpcNameToId[name] then
+        table.insert(rpcIdToName, name)
+        rpcNameToId[name] = #rpcIdToName
+    end
 end
 
 local function rpcToData(name, ...)
@@ -128,7 +129,7 @@ end
 function Common:construct(typeName, ...)
     local ent
 
-    local ty = assert(typesByName[typeName], "no type '" .. typeName .. "'")
+    local ty = assert(typeNameToType[typeName], "no type with name '" .. typeName .. "'")
     if ty.construct then -- User-defined construction
         ent = ty:construct(...)
     else -- Default construction
