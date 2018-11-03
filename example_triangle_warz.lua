@@ -7,7 +7,7 @@ local moonshine = require 'https://raw.githubusercontent.com/nikki93/moonshine/9
 
 -- Constants
 
-local SERVER_ADDRESS = '10.0.1.39'
+local SERVER_ADDRESS = '207.254.45.246'
 
 local W, H = 800, 600
 
@@ -114,16 +114,14 @@ function Triangle:draw(isOwn)
     love.graphics.stacked('all', function()
         love.graphics.translate(self.x, self.y)
 
-        -- Draw triangle, with special white outline if it's our own
+        -- Draw triangle, with thicker white outline if it's our own
         love.graphics.stacked('all', function()
             love.graphics.setColor(self.r, self.g, self.b)
             love.graphics.rotate(math.atan2(self.targetY - self.y, self.targetX - self.x))
             love.graphics.polygon('fill', -20, 20, 30, 0, -20, -20)
-            if isOwn then
-                love.graphics.setColor(1, 1, 1, 0.8)
-                love.graphics.setLineWidth(3)
-                love.graphics.polygon('line', -20, 20, 30, 0, -20, -20)
-            end
+            love.graphics.setColor(1, 1, 1, 0.8)
+            love.graphics.setLineWidth(isOwn and 3 or 1)
+            love.graphics.polygon('line', -20, 20, 30, 0, -20, -20)
         end)
 
         -- Draw health bar
