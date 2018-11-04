@@ -121,8 +121,8 @@ function Triangle:draw(isOwn)
 
         -- Draw triangle, with thicker white outline if it's our own
         love.graphics.stacked('all', function()
-            love.graphics.setColor(self.r, self.g, self.b)
             love.graphics.rotate(math.atan2(self.targetY - self.y, self.targetX - self.x))
+            love.graphics.setColor(self.r, self.g, self.b)
             love.graphics.polygon('fill', -20, 20, 30, 0, -20, -20)
             love.graphics.setColor(1, 1, 1, 0.8)
             love.graphics.setLineWidth(isOwn and 3 or 1)
