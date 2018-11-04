@@ -335,7 +335,7 @@ end
 -- Top-level drawing
 
 local effect = moonshine(moonshine.effects.glow).chain(moonshine.effects.vignette)
-effect.glow.strength = 2
+effect.glow.strength = 1.6
 
 function love.draw()
     effect(function()
