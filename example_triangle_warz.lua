@@ -11,6 +11,8 @@ local SERVER_ADDRESS = '207.254.45.246'
 
 local W, H = 800, 600
 
+local MOBILE = love.system.getOS() == 'iOS' or love.system.getOS() == 'Android'
+
 
 
 -- Utilities
@@ -254,6 +256,22 @@ end
 local server, client
 
 function love.update(dt)
+    -- Key events sent from mobile app
+    if MOBILE then
+        local pressed = love.thread.getChannel('KEY_PRESSED')
+        local released = love.thread.getChannel('KEY_RELEASED')
+        while pressed:getCount() > 0 do
+            local k = pressed:pop()
+            function love.keyboard.isDown(e) return e == k end
+            love.keypressed(k)
+        end
+        while released:getCount() > 0 do
+            local k = released:pop()
+            function love.keyboard.isDown(e) return false end
+            love.keyreleased(k)
+        end
+    end
+
     -- Do game logic on the server
     if server then
         for _, ent in pairs(server.all) do
@@ -288,6 +306,10 @@ local function mouseEvent(button) -- Common mouse event handler
 end
 
 function love.mousepressed(x, y, button)
+    if MOBILE and not client then
+        client = sync.newClient { address = SERVER_ADDRESS .. ':22122' }
+    end
+
     mouseEvent(button)
 end
 
@@ -405,13 +427,13 @@ function love.draw()
 
 
 move with W, A, S, D
-aim with mouse
-shoot with left mouse button or SPACE
+aim with mouse or touch
+shoot with left mouse button or SPACE or touch
 
 don't worry, your own lasers can't hurt you
 
 
-press ENTER to connect]], 20, 20)
+press ENTER or touch to connect]], 20, 20)
             end
         end)
     end)
