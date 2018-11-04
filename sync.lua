@@ -359,6 +359,7 @@ function Server:didDisconnect(peer)
 end
 
 function Client:didDisconnect()
+    self.controller = nil
 end
 
 

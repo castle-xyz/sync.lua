@@ -346,7 +346,7 @@ function love.draw()
 
             love.graphics.clear(0.2, 0.216, 0.271)
 
-            if client and client.controller then
+            if client and client.controller then -- Connected and playing
                 -- Draw triangles
                 for _, ent in pairs(client.all) do
                     if ent.__typeName == 'Triangle' then
@@ -391,7 +391,9 @@ function love.draw()
                 -- Draw fps and latency
                 love.graphics.print('fps:  ' .. love.timer.getFPS(), 20, H - 52)
                 love.graphics.print('ping: ' .. client.serverPeer:round_trip_time(), 20, H - 36)
-            else -- Show connection instructions if no client
+            elseif client and client.serverPeer:state() == 'disconnected' then -- Disconnected
+                love.graphics.print('disconnected, pres ENTER to reconnect', 20, 20)
+            else -- Didn't connect yet
                 love.graphics.setColor(1, 1, 1)
                 if server then
                     love.graphics.print('server running', 20, 20)
