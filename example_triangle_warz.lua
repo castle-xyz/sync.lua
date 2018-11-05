@@ -183,11 +183,22 @@ end
 
 local Bullet = sync.registerType('Bullet')
 
+local bulletSound = love.audio.newSource('laser.wav', 'static')
+
 function Bullet:didSpawn(ownerId, x, y, dirX, dirY, r, g, b)
     self.ownerId = ownerId
     self.x, self.y, self.dirX, self.dirY = x, y, dirX, dirY
     self.r, self.g, self.b = r, g, b
     self.lifetime = 1
+end
+
+function Bullet:didSync()
+    if not self.__local.didPlaySound then
+        bulletSound:setPitch(1.4 + 0.3 * math.random())
+        bulletSound:stop()
+        bulletSound:play()
+        self.__local.didPlaySound = true
+    end
 end
 
 function Bullet:update(dt)
@@ -224,6 +235,9 @@ local Explosion = sync.registerType('Explosion')
 
 local explosionImage = love.graphics.newImage('flare.png')
 
+local smallExplosionSound = love.audio.newSource('hurt.wav', 'static')
+local bigExplosionSound = love.audio.newSource('explosion.wav', 'static')
+
 function Explosion:didSpawn(x, y, r, g, b, isBig)
     self.x, self.y = x, y
     self.r, self.g, self.b = r, g, b
@@ -243,6 +257,9 @@ function Explosion:didSync()
             self.__local.particles:setSizes(1.6, 0.7, 0)
             self.__local.particles:setEmissionArea('ellipse', 20, 20)
             self.__local.particles:emit(7)
+            bigExplosionSound:setPitch(0.7 + 0.3 * math.random())
+            bigExplosionSound:stop()
+            bigExplosionSound:play()
         else
             self.__local.particles:setLinearAcceleration(-160, -160, 160, 160)
             self.__local.particles:setParticleLifetime(0.3, 0.55)
@@ -250,6 +267,9 @@ function Explosion:didSync()
             self.__local.particles:setSizes(0.2, 0.08, 0)
             self.__local.particles:setEmissionArea('ellipse', 5, 5)
             self.__local.particles:emit(24)
+            smallExplosionSound:setPitch(1.4 + 0.3 * math.random())
+            smallExplosionSound:stop()
+            smallExplosionSound:play()
         end
     end
 end
