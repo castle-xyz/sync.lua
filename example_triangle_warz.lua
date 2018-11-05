@@ -100,7 +100,8 @@ function Triangle:update(dt)
             if hitX then -- We got shot!
                 self.__mgr:despawn(ent)
                 self.health = self.health - 5
-                if self.health <= 0 then -- We died! 'Respawn' and increment shooter's score
+                if self.health <= 0 then -- We died! Big explosion, respawn, award shooter.
+                    self.__mgr:spawn('Explosion', self.x, self.y, self.r, self.g, self.b, true)
                     self.health = 100
                     self.x, self.y = math.random(10, W - 10), math.random(10, H - 10)
                     local shooter = self.__mgr.all[ent.ownerId]
@@ -223,23 +224,33 @@ local Explosion = sync.registerType('Explosion')
 
 local explosionImage = love.graphics.newImage('flare.png')
 
-function Explosion:didSpawn(x, y, r, g, b)
+function Explosion:didSpawn(x, y, r, g, b, isBig)
     self.x, self.y = x, y
     self.r, self.g, self.b = r, g, b
-    self.lifetime = 3
+    self.isBig = isBig or false
+    self.lifetime = isBig and 4 or 3
 end
 
 function Explosion:didSync()
     if not self.__local.particles then
         self.__local.particles = love.graphics.newParticleSystem(explosionImage, 32)
-        self.__local.particles:setParticleLifetime(0.3, 0.55)
-        self.__local.particles:setSizeVariation(0.4)
-        self.__local.particles:setSizes(0.2, 0.08, 0)
-        self.__local.particles:setEmissionArea('ellipse', 5, 5)
-        self.__local.particles:setLinearAcceleration(-160, -160, 160, 160)
         self.__local.particles:setColors(1, 1, 1, 1, 1, 1, 1, 0)
         self.__local.particles:setEmitterLifetime(self.lifetime)
-        self.__local.particles:emit(24)
+        if self.isBig then
+            self.__local.particles:setLinearAcceleration(-70, -70, 70, 70)
+            self.__local.particles:setParticleLifetime(0.6, 1)
+            self.__local.particles:setSizeVariation(0.8)
+            self.__local.particles:setSizes(1.6, 0.7, 0)
+            self.__local.particles:setEmissionArea('ellipse', 20, 20)
+            self.__local.particles:emit(7)
+        else
+            self.__local.particles:setLinearAcceleration(-160, -160, 160, 160)
+            self.__local.particles:setParticleLifetime(0.3, 0.55)
+            self.__local.particles:setSizeVariation(0.4)
+            self.__local.particles:setSizes(0.2, 0.08, 0)
+            self.__local.particles:setEmissionArea('ellipse', 5, 5)
+            self.__local.particles:emit(24)
+        end
     end
 end
 
