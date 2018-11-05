@@ -81,7 +81,7 @@ function Triangle:update(dt)
     for _, ent in pairs(self.__mgr.all) do
         if ent.__typeName == 'Bullet' and ent.ownerId ~= self.__id then
             local dx, dy = ent.x - self.x, ent.y - self.y
-            local hit = false
+            local hitX, hitY
             if dx * dx + dy * dy < 3600 then -- Ignore if far
                 for i = -1, 1, 0.2 do -- Check a few points to prevent 'tunneling'
                     local bx, by = ent.x + 18 * i * ent.dirX, ent.y + 18 * i * ent.dirY
@@ -91,13 +91,13 @@ function Triangle:update(dt)
                         rdx = rdx + 20
                         rdy = math.abs(rdy)
                         if rdx / 50 + rdy / 20 < 1 then
-                            hit = true
+                            hitX, hitY = bx, by
                             break
                         end
                     end
                 end
             end
-            if hit then -- We got shot!
+            if hitX then -- We got shot!
                 self.__mgr:despawn(ent)
                 self.health = self.health - 5
                 if self.health <= 0 then -- We died! 'Respawn' and increment shooter's score
@@ -108,6 +108,8 @@ function Triangle:update(dt)
                         shooter.score = shooter.score + 1
                         self.__mgr:sync(shooter)
                     end
+                else -- Just got shot, didn't die, smaller explosion
+                    self.__mgr:spawn('Explosion', hitX, hitY, ent.r, ent.g, ent.b)
                 end
                 self.__mgr:sync(self)
             end
@@ -215,6 +217,60 @@ end
 
 
 
+-- Explosion
+
+local Explosion = sync.registerType('Explosion')
+
+local explosionImage = love.graphics.newImage('flare.png')
+
+function Explosion:didSpawn(x, y, r, g, b)
+    self.x, self.y = x, y
+    self.r, self.g, self.b = r, g, b
+    self.lifetime = 3
+end
+
+function Explosion:didSync()
+    if not self.__local.particles then
+        self.__local.particles = love.graphics.newParticleSystem(explosionImage, 32)
+        self.__local.particles:setParticleLifetime(0.3, 0.55)
+        self.__local.particles:setSizeVariation(0.4)
+        self.__local.particles:setSizes(0.2, 0.08, 0)
+        self.__local.particles:setEmissionArea('ellipse', 5, 5)
+        self.__local.particles:setLinearAcceleration(-160, -160, 160, 160)
+        self.__local.particles:setColors(1, 1, 1, 1, 1, 1, 1, 0)
+        self.__local.particles:setEmitterLifetime(self.lifetime)
+        self.__local.particles:emit(24)
+    end
+end
+
+function Explosion:destruct()
+    if self.__local.particles then
+        self.__local.particles:destroy()
+    end
+end
+
+function Explosion:update(dt)
+    self.lifetime = self.lifetime - dt
+    if self.__mgr.isServer and self.lifetime <= -2 then
+        self.__mgr:despawn(self)
+    end
+    if self.__local.particles then
+        self.__local.particles:update(dt)
+    end
+end
+
+function Explosion:draw()
+    if self.__local.particles then
+        love.graphics.stacked('all', function()
+            love.graphics.setBlendMode('add')
+            love.graphics.setColor(self.r, self.g, self.b)
+            love.graphics.draw(self.__local.particles, self.x, self.y)
+        end)
+    end
+end
+
+
+
 -- Controller -- one of these is spawned automatically by the system per client that connects and
 -- is despawned on disconnect
 
@@ -276,6 +332,15 @@ function love.update(dt)
     if server then
         for _, ent in pairs(server.all) do
             if ent.update then
+                ent:update(dt)
+            end
+        end
+    end
+
+    -- Update explosions on client (particle systems are local)
+    if client then
+        for _, ent in pairs(client.all) do
+            if ent.__typeName == 'Explosion' then
                 ent:update(dt)
             end
         end
@@ -379,6 +444,13 @@ function love.draw()
                 -- Draw bullets
                 for _, ent in pairs(client.all) do
                     if ent.__typeName == 'Bullet' then
+                        ent:draw()
+                    end
+                end
+
+                -- Draw explosions
+                for _, ent in pairs(client.all) do
+                    if ent.__typeName == 'Explosion' then
                         ent:draw()
                     end
                 end
