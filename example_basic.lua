@@ -1,18 +1,35 @@
 local sync = require 'sync'
 
+
 local Player = sync.registerType('Player')
 
 function Player:didSpawn()
     self.x, self.y = love.graphics.getWidth() * math.random(), love.graphics.getHeight() * math.random()
     self.r, self.g, self.b = 0.2 + 0.8 * math.random(), 0.2 + 0.8 * math.random(), 0.2 + 0.8 * math.random()
+    self.vx, self.vy = 0, 0
+end
+
+function Player:update(dt)
+    self.x = self.x + self.vx * dt
+    self.y = self.y + self.vy * dt
+    self.__mgr:sync(self)
 end
 
 function Player:draw()
     love.graphics.push('all')
     love.graphics.setColor(self.r, self.g, self.b)
     love.graphics.ellipse('fill', self.x, self.y, 40, 40)
-    love.graphics.pop('all')
+    love.graphics.pop()
 end
+
+function Player:setWalkState(up, down, left, right)
+    self.vx, self.vy = 0, 0
+    if up then self.vy = self.vy - 240 end
+    if down then self.vy = self.vy + 240 end
+    if left then self.vx = self.vx - 240 end
+    if right then self.vx = self.vx + 240 end
+end
+
 
 local Controller = sync.registerType('Controller')
 
@@ -25,7 +42,24 @@ function Controller:willDespawn()
     self.player = nil
 end
 
+function Controller:setWalkState(up, down, left, right)
+    self.player:setWalkState(up, down, left, right)
+end
+
+
 local server, client
+
+local function keyEvent(key)
+    if client then
+        if key == 'up' or key == 'down' or key == 'left' or key == 'right' then
+            client.controller:setWalkState(
+                love.keyboard.isDown('up'),
+                love.keyboard.isDown('down'),
+                love.keyboard.isDown('left'),
+                love.keyboard.isDown('right'))
+        end
+    end
+end
 
 function love.keypressed(key)
     if key == '1' then
@@ -34,9 +68,22 @@ function love.keypressed(key)
     if key == '2' then
         client = sync.newClient { address = '192.168.1.80:22122' }
     end
+
+    keyEvent(key)
+end
+
+function love.keyreleased(key)
+    keyEvent(key)
 end
 
 function love.update(dt)
+    if server then
+        for _, ent in pairs(server.all) do
+            if ent.update then
+                ent:update(dt)
+            end
+        end
+    end
     if server then
         server:process()
     end
