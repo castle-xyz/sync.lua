@@ -252,7 +252,7 @@ The last piece of the puzzle is actually calling the `:setWalkState` method of t
 
 ```lua
 local function keyEvent(key)
-    if client then
+    if client and client.controller then
         if key == 'up' or key == 'down' or key == 'left' or key == 'right' then
             client.controller:setWalkState(
                 love.keyboard.isDown('up'),
@@ -274,12 +274,54 @@ function love.keyreleased(key)
 end
 ```
 
-This way we only call `:setWalkState` on key presses or key releases that should actually affect walking state. Controller method calls from clients need to go over the network, so make sure not to add needless calls (an example would be calling it every frame in this case, rather then only when the relevant keys are pressed or released). Here `client.controller` is a local proxy for the controller that forwards method calls to the server. Controllers are the only entity type that have method calls proxied in this  way.
+This way we only call `:setWalkState` on key presses or key releases that should actually affect walking state. Controller method calls from clients need to go over the network, so make sure not to add needless calls (an example would be calling it every frame in this case, rather then only when the relevant keys are pressed or released). Here `client.controller` is a local proxy for the controller that forwards method calls to the server. If the client is still connecting or is disconnected, `client.controller` will be `nil`, so we check this before calling methods.
 
 We've made quite some changes so you can check out the final state of the file at this stage [here](https://github.com/expo/sync.lua/blob/067639a0e021c41180154847336c28bed3d1f1a3/example_basic.lua) if anything's unclear.
 
-Now re-run the game (through the process described at the end of the last section) and you should be able to move the circles around from each computer!
+Now re-run the game (through the process described at the end of the last section) and you should be able to use the arrow keys move the circles around from each computer!
 
 Each client only moves the circle that it owns. How does this happen? Each client gets a `Controller` spawned for it on connecting. So there are two `Controller`s. Due to our own code, each `Controller` spawns a `Player` and saves it as `self.player`, so there are two `Player`s too (hence we see two circles on screen). When you call `:setWalkState` from the client, it is *only* called on the `Controller` instance *for that client* on the server. This way the logic is properly routed to the correct `Player` instance.
 
 You might be thinking, why do we have `Controller` at all, why not just have `Player` be the entity on which you can call methods on the server from the client? In a more involved game, it could be that the `Player` instance is destroyed due to some event (such as something exploding nearby). In some other games, there may not even be a clear `Player` instance too (consider multiplayer chess). Designating some type as always existing per client, independent of the lifetime of gameplay-related entities like `Player`, makes *sync.lua*'s own method routing logic simple and lets you define these game-specific cases in your `Controller`.
+
+When you join the game, it's unclear which circle is owned by you until you hit the arrow keys and see what happens. Let's make the game highlight your circle so this is clear.
+
+## Highlighting the users's own circle
+
+First let's modify `Player:draw` to optionally draw a white outline around the circle:
+
+```lua
+function Player:draw(isOwn)
+    love.graphics.push('all')
+    love.graphics.setColor(self.r, self.g, self.b)
+    love.graphics.ellipse('fill', self.x, self.y, 40, 40)
+    if isOwn then
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.setLineWidth(5)
+        love.graphics.ellipse('line', self.x, self.y, 48, 48)
+    end
+    love.graphics.pop()
+end
+```
+
+Now, in `love.draw` we should call this passing `true` if it's the user's own `Player`. In `love.draw`, we iterate through entities in `client.all`, which is a table containing the local replicas of the games entities. Since we set `self.player` in `Controller`, and `client.controller` refers to the local `Controller` replica for a client, `client.controller.player` will refer to the local `Player` replica for that client. *sync.lua* properly points entity cross-references to the correct local replicas when synchronizing. So we can change `love.draw` to the following:
+
+```lua
+function love.draw()
+    if client then
+        for _, ent in pairs(client.all) do
+            if ent.__typeName == 'Player' then
+                ent:draw(ent == client.controller.player)
+            elseif ent.draw then
+                ent:draw()
+            end
+        end
+    end
+end
+```
+
+*sync.lua* sets `.__typeName` for a type to be the name of that type. So the code just says, "if it's a `Player`, pass `isOwn` based on whether it's the client's `Controller`'s `Player`, else draw it normally." On re-running you should see that the user's own circle is highlighted:
+
+![](./tutorial_basic_3.png)
+
+In a more involved game you might want to set up the drawing transform to draw from the `Player`'s perspective, or specify an order of drawing entities, or some other custom logic. In any case, `client.controller` synchronizes the `Controller`'s members (just like for any other entity), which usually provides the pathway to player-specific data.

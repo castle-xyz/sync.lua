@@ -15,10 +15,15 @@ function Player:update(dt)
     self.__mgr:sync(self)
 end
 
-function Player:draw()
+function Player:draw(isOwn)
     love.graphics.push('all')
     love.graphics.setColor(self.r, self.g, self.b)
     love.graphics.ellipse('fill', self.x, self.y, 40, 40)
+    if isOwn then
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.setLineWidth(5)
+        love.graphics.ellipse('line', self.x, self.y, 48, 48)
+    end
     love.graphics.pop()
 end
 
@@ -95,7 +100,9 @@ end
 function love.draw()
     if client then
         for _, ent in pairs(client.all) do
-            if ent.draw then
+            if ent.__typeName == 'Player' then
+                ent:draw(ent == client.controller.player)
+            elseif ent.draw then
                 ent:draw()
             end
         end
