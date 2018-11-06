@@ -276,7 +276,7 @@ end
 
 This way we only call `:setWalkState` on key presses or key releases that should actually affect walking state. Controller method calls from clients need to go over the network, so make sure not to add needless calls (an example would be calling it every frame in this case, rather then only when the relevant keys are pressed or released). Here `client.controller` is a local proxy for the controller that forwards method calls to the server. If the client is still connecting or is disconnected, `client.controller` will be `nil`, so we check this before calling methods.
 
-We've made quite some changes so you can check out the final state of the file at this stage [here](https://github.com/expo/sync.lua/blob/067639a0e021c41180154847336c28bed3d1f1a3/example_basic.lua) if anything's unclear.
+We've made quite some changes so you can check out the final state of the file at this stage [here](https://github.com/expo/sync.lua/blob/79ea997a7552bf66d68f47213430f29cc787a5df/example_basic.lua) if anything's unclear.
 
 Now re-run the game (through the process described at the end of the last section) and you should be able to use the arrow keys move the circles around from each computer!
 
