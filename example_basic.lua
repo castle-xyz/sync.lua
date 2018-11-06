@@ -50,7 +50,7 @@ end
 local server, client
 
 local function keyEvent(key)
-    if client then
+    if client and client.controller then
         if key == 'up' or key == 'down' or key == 'left' or key == 'right' then
             client.controller:setWalkState(
                 love.keyboard.isDown('up'),
