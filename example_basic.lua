@@ -46,6 +46,12 @@ function love.update(dt)
 end
 
 function love.draw()
-    love.graphics.print('hello, world!', 20, 20)
+    if client then
+        for _, ent in pairs(client.all) do
+            if ent.draw then
+                ent:draw()
+            end
+        end
+    end
 end
 
