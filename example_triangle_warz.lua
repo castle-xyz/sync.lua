@@ -183,7 +183,7 @@ end
 
 local Bullet = sync.registerType('Bullet')
 
-local bulletSound = love.audio.newSource('laser.wav', 'static')
+local bulletSound = love.audio.newSource('example_assets/laser.wav', 'static')
 
 function Bullet:didSpawn(ownerId, x, y, dirX, dirY, r, g, b)
     self.ownerId = ownerId
@@ -233,10 +233,10 @@ end
 
 local Explosion = sync.registerType('Explosion')
 
-local explosionImage = love.graphics.newImage('flare.png')
+local explosionImage = love.graphics.newImage('example_assets/flare.png')
 
-local smallExplosionSound = love.audio.newSource('hurt.wav', 'static')
-local bigExplosionSound = love.audio.newSource('explosion.wav', 'static')
+local smallExplosionSound = love.audio.newSource('example_assets/hurt.wav', 'static')
+local bigExplosionSound = love.audio.newSource('example_assets/explosion.wav', 'static')
 
 function Explosion:didSpawn(x, y, r, g, b, isBig)
     self.x, self.y = x, y
