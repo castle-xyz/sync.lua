@@ -1,13 +1,28 @@
 local sync = require 'sync'
 
+local Player = sync.registerType('Player')
+
+function Player:didSpawn()
+    self.x, self.y = love.graphics.getWidth() * math.random(), love.graphics.getHeight() * math.random()
+    self.r, self.g, self.b = 0.2 + 0.8 * math.random(), 0.2 + 0.8 * math.random(), 0.2 + 0.8 * math.random()
+end
+
+function Player:draw()
+    love.graphics.push('all')
+    love.graphics.setColor(self.r, self.g, self.b)
+    love.graphics.ellipse('fill', self.x, self.y, 40, 40)
+    love.graphics.pop('all')
+end
+
 local Controller = sync.registerType('Controller')
 
 function Controller:didSpawn()
-    print('a client connected')
+    self.player = self.__mgr:spawn('Player')
 end
 
 function Controller:willDespawn()
-    print('a client disconnected')
+    self.__mgr:despawn(self.player)
+    self.player = nil
 end
 
 local server, client

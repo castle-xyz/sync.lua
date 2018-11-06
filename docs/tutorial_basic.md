@@ -93,6 +93,8 @@ Let's update our `sync.newServer` call from before to use this controller type:
         server = sync.newServer { address = '*:22122', controllerTypeName = 'Controller' }
 ```
 
+We could've named our controller type anything else, as long as we pass it to the above function this way.
+
 Now reload the game. Press '1', then press '2'. There should be no errors. But the game doesn't show any feedback either. Let's fix that. Let's have our `Controller` `print` something when a client connects or disconnects:
 
 ```lua
@@ -107,7 +109,7 @@ end
 
 The `server` spawns a `Controller` when a client connects and despawns it on disconnect.
 
-Now if you reload and press '1' then '2' you should have the "a client connected" message be printed!
+Now if you reload and press '1' then '2' you should have the "a client connected" message be printed! You could launch a second instance of the game and just press '2' to connect to the first.
 
 ## (Optional) Connecting a different computer
 
@@ -118,3 +120,70 @@ If you have another computer, we could test that the server is accessible from i
 ```
 
 Now run your game on both computers (if using LÖVE you could copy the code, in Castle you could just serve the game on the first computer and use the local IP on the second). On the first computer, press '1' to start the server. Then on the second computer, press '2' to connect. On the first computer you should see the message "a client connected" be printed. If you quit the game on the second computer, you'll see the "a client disconnected" message be printed on the first after some time, because the server notices that the client has stopped responding.
+
+Enough text output, let's show some graphics!
+
+## Drawing some circles
+
+We'll add a `Player` type that keeps track of its own position and color. Let's have it randomly assign both when it spawns:
+
+```lua
+local Player = sync.registerType('Player')
+
+function Player:didSpawn()
+    self.x, self.y = love.graphics.getWidth() * math.random(), love.graphics.getHeight() * math.random()
+    self.r, self.g, self.b = 0.2 + 0.8 * math.random(), 0.2 + 0.8 * math.random(), 0.2 + 0.8 * math.random()
+end
+```
+
+We're making the `r`, `g`, `b` values at least `0.2` so that the circles aren't too dark and we can tell them apart from the black background.
+
+The `x`, `y`, `r`, `g`, `b` members are not special to *sync.lua*, we're just defining them in our `Player` type. The only *sync.lua*-defined names here are `sync.registerType` and `:didSpawn`.
+
+Let's write a `draw` function for `Player` that actually draws it to the screen:
+
+```lua
+function Player:draw()
+    love.graphics.push('all')
+    love.graphics.setColor(self.r, self.g, self.b)
+    love.graphics.ellipse('fill', self.x, self.y, 40, 40)
+    love.graphics.pop('all')
+end
+```
+
+This is regular LÖVE code. Let's replace `love.draw` to draw our `Player` instances on the client:
+
+```lua
+function love.draw()
+    if client then
+        for id, ent in pairs(client.all) do
+            if ent.draw then
+                ent:draw()
+            end
+        end
+    end
+end
+```
+
+`client.all` is a table of all entities replicated on the client, with unique id numbers as keys and the entity instances themselves as values (that's why we iterate with `for id, ent`). *sync.lua* has nothing to do with this `:draw` method or drawing logic, we're writing our own draw logic as we would in a regular LÖVE game. The only difference is that we need to look in `client` for the entities. An 'entity' here refers to an instance of a type we registered with *sync.lua*.
+
+Finally, let's make the `Controller` spawn a new `Player` instance on connecting and despawn it on disconnecting. Replace the code for `:didSpawn` and `:willDespawn` in `Controller`:
+
+```lua
+function Controller:didSpawn()
+    self.player = self.__mgr:spawn('Player')
+end
+
+function Controller:willDespawn()
+    self.__mgr:despawn(self.player)
+    self.player = nil
+end
+```
+
+`self.__mgr` is the "manager" for an entity, which can be used to spawn other entities or despawn entities (including despawning oneself).
+
+It's important that we set `self.player` to `nil` after despawning it so that we don't sync a stale reference to the client. In general make sure to `nil`-out references to despawned entities. *sync.lua* will throw an error notifying you if it notices stale references when sync'ing.
+
+Now re-run the game on the first computer and press '1' to launch the server, then '2' to connect as a client. You should see a circle! Re-run the second instance of the game (on either the same or a different computer) and press '2' and you'll see another circle pop up! You should see two circles on both instances, with the second one having popped up only when you connected from the second instance of the game. This will be the normal way to re-run the game from now on. At this point your game should look something like this (with your own random positions and random colors):
+
+![](./tutorial_basic_2.png)
