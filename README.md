@@ -4,4 +4,4 @@
 
 To use it in your game, just copy 'sync.lua' and 'bitser.lua' into a place you can `require` from in the game, and load `sync` as `local sync = require 'sync'`.
 
-See '[example_triangle_warz.lua](./example_triangle_warz.lua)' for the code of an example that uses this library.
+See '[example_triangle_warz.lua](./example_triangle_warz.lua)' for the code of an example that uses this library. Tutorial(s) and documentation coming soon...
