@@ -1,3 +1,6 @@
+-- Tutorial on this at https://github.com/expo/sync.lua/blob/master/docs/tutorial_basic.md
+
+
 local sync = require 'sync'
 
 

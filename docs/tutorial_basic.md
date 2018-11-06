@@ -1,6 +1,6 @@
 # Basic tutorial
 
-In this tutorial we will build up to '[example_basic.lua](../example_basic.lua)'. In this example, each player that logs in is given a single randomly-colored circle that they can move around on screen. You can see other players' circles. In addition, pressing the spacebar will play a laser noise! Each player plays the noise at a different pitch.
+In this tutorial we will build up to '[example_basic.lua](../example_basic.lua)'. In this example, each player that logs in is given a single randomly-colored circle that they can move around on screen. You can see other players' circles.
 
 ## Setup
 
