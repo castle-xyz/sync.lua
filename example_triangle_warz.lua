@@ -394,6 +394,7 @@ end
 
 function love.mousemoved(x, y)
     if client and client.controller then
+        -- We move / scale the display when drawing -- apply the inverse of that here
         local w, h = DISPLAY_SCALE * W, DISPLAY_SCALE * H
         local ox, oy = 0.5 * (love.graphics.getWidth() - w), 0.5 * (love.graphics.getHeight() - h)
         client.controller:setTarget((x - ox) / DISPLAY_SCALE, (y - oy) / DISPLAY_SCALE)
@@ -462,7 +463,7 @@ end
 local effect = moonshine(moonshine.effects.glow).chain(moonshine.effects.vignette)
 effect.glow.strength = 1.6
 
-function love.resize()
+function love.resize() -- Need to recreate `effect` with new canvas size
     effect = moonshine(moonshine.effects.glow).chain(moonshine.effects.vignette)
     effect.glow.strength = 1.6
 end
@@ -470,6 +471,7 @@ end
 function love.draw()
     effect(function()
         love.graphics.stacked('all', function()
+            -- Scale down the display and center the display
             local w, h = DISPLAY_SCALE * W, DISPLAY_SCALE * H
             local ox, oy = 0.5 * (love.graphics.getWidth() - w), 0.5 * (love.graphics.getHeight() - h)
             love.graphics.setScissor(ox, oy, w, h)
