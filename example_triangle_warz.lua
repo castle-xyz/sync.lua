@@ -462,6 +462,11 @@ end
 local effect = moonshine(moonshine.effects.glow).chain(moonshine.effects.vignette)
 effect.glow.strength = 1.6
 
+function love.resize()
+    effect = moonshine(moonshine.effects.glow).chain(moonshine.effects.vignette)
+    effect.glow.strength = 1.6
+end
+
 function love.draw()
     effect(function()
         love.graphics.stacked('all', function()
