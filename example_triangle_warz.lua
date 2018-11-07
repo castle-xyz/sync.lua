@@ -9,9 +9,11 @@ local moonshine = require 'https://raw.githubusercontent.com/nikki93/moonshine/9
 
 local SERVER_ADDRESS = '207.254.45.246'
 
-local W, H = 800, 600
+local W, H = 800, 600 -- Game world size
 
 local MOBILE = love.system.getOS() == 'iOS' or love.system.getOS() == 'Android'
+
+local DISPLAY_SCALE = 1 -- Scale to draw graphics at w.r.t game world units
 
 
 
@@ -359,6 +361,12 @@ function love.update(dt)
         end
     end
 
+    -- Scale down display if window is too small
+    if client then
+        local w, h = love.graphics.getDimensions()
+        DISPLAY_SCALE = math.min(1, w / W, h / H)
+    end
+
     -- Do game logic on the server
     if server then
         for _, ent in pairs(server.all) do
@@ -388,8 +396,9 @@ end
 
 function love.mousemoved(x, y)
     if client and client.controller then
-        local ox, oy = 0.5 * (love.graphics.getWidth() - W), 0.5 * (love.graphics.getHeight() - H)
-        client.controller:setTarget(x - ox, y - oy)
+        local w, h = DISPLAY_SCALE * W, DISPLAY_SCALE * H
+        local ox, oy = 0.5 * (love.graphics.getWidth() - w), 0.5 * (love.graphics.getHeight() - h)
+        client.controller:setTarget((x - ox) / DISPLAY_SCALE, (y - oy) / DISPLAY_SCALE)
     end
 end
 
@@ -458,9 +467,11 @@ effect.glow.strength = 1.6
 function love.draw()
     effect(function()
         love.graphics.stacked('all', function()
-            local ox, oy = 0.5 * (love.graphics.getWidth() - W), 0.5 * (love.graphics.getHeight() - H)
-            love.graphics.setScissor(ox, oy, W, H)
+            local w, h = DISPLAY_SCALE * W, DISPLAY_SCALE * H
+            local ox, oy = 0.5 * (love.graphics.getWidth() - w), 0.5 * (love.graphics.getHeight() - h)
+            love.graphics.setScissor(ox, oy, w, h)
             love.graphics.translate(ox, oy)
+            love.graphics.scale(DISPLAY_SCALE)
 
             love.graphics.clear(0.2, 0.216, 0.271)
 
