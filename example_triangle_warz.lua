@@ -362,10 +362,8 @@ function love.update(dt)
     end
 
     -- Scale down display if window is too small
-    if client then
-        local w, h = love.graphics.getDimensions()
-        DISPLAY_SCALE = math.min(1, w / W, h / H)
-    end
+    local w, h = love.graphics.getDimensions()
+    DISPLAY_SCALE = math.min(1, w / W, h / H)
 
     -- Do game logic on the server
     if server then
