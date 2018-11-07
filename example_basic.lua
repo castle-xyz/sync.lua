@@ -101,7 +101,7 @@ function love.update(dt)
 end
 
 function love.draw()
-    if client then
+    if client and client.controller then
         for _, ent in pairs(client.all) do
             if ent.__typeName == 'Player' then
                 ent:draw(ent == client.controller.player)
@@ -109,6 +109,8 @@ function love.draw()
                 ent:draw()
             end
         end
+    else
+        love.graphics.print('not connected', 20, 20)
     end
 end
 

@@ -207,10 +207,10 @@ We'll pass `true` or `false` for each parameter depending on whether we want the
 ```lua
 function Player:setWalkState(up, down, left, right)
     self.vx, self.vy = 0, 0
-    if up then self.vy = self.vy - 40 end
-    if down then self.vy = self.vy + 40 end
-    if left then self.vx = self.vx - 40 end
-    if right then self.vx = self.vx + 40 end
+    if up then self.vy = self.vy - 240 end
+    if down then self.vy = self.vy + 240 end
+    if left then self.vx = self.vx - 240 end
+    if right then self.vx = self.vx + 240 end
 end
 ```
 
@@ -308,7 +308,7 @@ Now, in `love.draw` we should call this passing `true` if it's the user's own `P
 
 ```lua
 function love.draw()
-    if client then
+    if client and client.controller then
         for _, ent in pairs(client.all) do
             if ent.__typeName == 'Player' then
                 ent:draw(ent == client.controller.player)
@@ -316,11 +316,13 @@ function love.draw()
                 ent:draw()
             end
         end
+    else
+        love.graphics.print('not connected', 20, 20)
     end
 end
 ```
 
-*sync.lua* sets `.__typeName` for a type to be the name of that type. So the code just says, "if it's a `Player`, pass `isOwn` based on whether it's the client's `Controller`'s `Player`, else draw it normally." On re-running you should see that the user's own circle is highlighted:
+*sync.lua* sets `.__typeName` for a type to be the name of that type. So the code just says, "if it's a `Player`, pass `isOwn` based on whether it's the client's `Controller`'s `Player`, else draw it normally." We've also updated the code to check if the client is connected (by checking that `client.controller` isn't `nil`), and show a message otherwise. On re-running you should see that the user's own circle is highlighted:
 
 ![](./tutorial_basic_3.png)
 
