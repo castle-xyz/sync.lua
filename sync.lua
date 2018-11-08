@@ -282,16 +282,17 @@ function Common:applyReceivedSyncs()
         end
         return ent
     end
-    __DESERIALIZE_ENTITY_REF = getOrConstruct -- bitser calls this to deserialize entity references
 
     -- Collect latest syncs per-entity
     local latestSyncs = {}
+    __DESERIALIZE_ENTITY_REF = getOrConstruct -- bitser calls this to deserialize entity references
     for _, dump in pairs(self.receivedSyncsDumps) do
         local syncs = bitser.loads(dump)
         for id, sync in pairs(syncs) do
             latestSyncs[id] = sync
         end
     end
+    __DESERIALIZE_ENTITY_REF = nil
     self.receivedSyncsDumps = {}
 
     -- Actually apply the syncs
@@ -341,8 +342,6 @@ function Common:applyReceivedSyncs()
             ent:didSync()
         end
     end
-
-    __DESERIALIZE_ENTITY_REF = nil
 end
 
 
