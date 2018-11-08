@@ -237,41 +237,43 @@ function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all conn
         return
     end
 
-    -- Collect relevant syncs per peer we're sending to
-    local peerToRelevants = {}
+    -- Memoized function to dump `sync`s so we only serialize each required entity once
+    local allDumps = {}
+    local function getDump(id)
+        local dump = allDumps[id]
+        if dump == nil then
+            local sync = syncs[id]
+            if sync == SYNC_DESTRUCT then
+                dump = SYNC_DESTRUCT
+            else
+                local savedLocal = sync.__local
+                sync.__local = nil
+                sync.__mgr = nil
+                dump = bitser.dumps(sync)
+                sync.__local = savedLocal
+                sync.__mgr = self
+            end
+            allDumps[id] = dump
+        end
+        return dump
+    end
+
+    -- Collect dumps per peer we're sending to and send them
     local controllers = peer and { [peer] = self.controllers[peer] } or self.controllers
     for peer, controller in pairs(controllers) do
-        local relevants = {}
+        local dumps = {}
         for id, sync in pairs(syncs) do
             if sync ~= SYNC_DESTRUCT and sync.isRelevant and not sync:isRelevant(controller) then
                 sync = SYNC_DESTRUCT
             end
             if not (sync == SYNC_DESTRUCT and not self.peerHas[peer][id]) then
-                local savedLocal
-                if sync ~= SYNC_DESTRUCT then
-                    sync.__mgr = nil
-                    savedLocal = sync.__local
-                    sync.__local = nil
-                end
-                relevants[id] = bitser.dumps(sync)
-                if sync ~= SYNC_DESTRUCT then
-                    sync.__mgr = self
-                    sync.__local = savedLocal
-                end
+                dumps[id] = sync == SYNC_DESTRUCT and SYNC_DESTRUCT or getDump(id)
             end
             self.peerHas[peer][id] = sync ~= SYNC_DESTRUCT and true or nil
         end
-        if next(relevants) then -- Non-empty?
-            peerToRelevants[peer] = relevants
+        if next(dumps) then -- Non-empty?
+            peer:send(rpcToData('receiveSyncs', dumps))
         end
-    end
-    if not next(peerToRelevants) then -- Empty?
-        return
-    end
-
-    -- Unset `__local` and `__mgr` so they aren't sent, send, then restore
-    for peer, relevants in pairs(peerToRelevants) do
-        peer:send(rpcToData('receiveSyncs', relevants))
     end
 end
 
@@ -286,7 +288,7 @@ function Common:applyReceivedSyncs()
     -- Apply the syncs
     local syncedEnts = {}
     for id, dump in pairs(self.incomingSyncs) do
-        local sync = bitser.loads(dump)
+        local sync = type(dump) == 'string' and bitser.loads(dump) or dump
         if sync == SYNC_DESTRUCT then
             local ent = self.all[id]
             if ent then
