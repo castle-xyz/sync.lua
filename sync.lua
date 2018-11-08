@@ -5,9 +5,12 @@ local enet = require 'enet'
 local bitser = require 'bitser'
 
 
+local pairs, next, type = pairs, next, type
+
+
 local BANDWIDTH_LIMIT = 0 -- Bandwidth limit in bytes per second -- 0 for unlimited
 
-local DESPAWNED = true -- Sentinel for despawned entities -- `true` is a single byte when bitser'd
+local SYNC_DESTRUCT = 1 -- Sentinel to sync entity destruction -- single byte when bitser'd
 
 
 -- Ids
@@ -65,10 +68,7 @@ end
 -- Initialization, disconnection
 
 function Common:init(props)
-    -- Each of these tables is a 'set' of the form `t[k.__id] = k` for all `k` in the set
-    self.all = {} -- Entities we can read
-    self.needsSend = {} -- Entities whose sync we need to send
-    self.receivedSyncsDumps = {} -- Received syncs pending apply
+    self.all = {} -- `ent.__id` -> `ent` for all on server / all sync'd on client
 end
 
 function Server:init(props)
@@ -81,7 +81,11 @@ function Server:init(props)
 
     self.host = enet.host_create(props.address or '*:22122')
     self.host:bandwidth_limit(BANDWIDTH_LIMIT, BANDWIDTH_LIMIT)
-    self.controllers = {}
+
+    self.controllers = {} -- `peer` -> `ent` for controller for that peer
+
+    self.needsSend = {} -- `ent.__id` -> (`ent` or `SYNC_DESTRUCT`)
+    self.peerHas = {} -- `peer` -> `ent.__id` -> `true` for all sync'd on `peer`
 end
 
 function Client:init(props)
@@ -93,7 +97,11 @@ function Client:init(props)
 
     self.host = enet.host_create()
     self.host:bandwidth_limit(BANDWIDTH_LIMIT, BANDWIDTH_LIMIT)
+
     self.serverPeer = self.host:connect(props.address)
+    self.controller = nil
+
+    self.receivedSyncsDumps = {} -- Received syncs (in serialized form) pending apply
 end
 
 function Client:disconnect()
@@ -150,10 +158,15 @@ function Common:construct(typeName, ...)
 end
 
 function Common:destruct(ent)
+    if ent.__destructed then
+        return
+    end
+
     if ent.didDestruct then
         ent:didDestruct()
     end
 
+    ent.__destructed = true
     ent.__mgr = nil
 end
 
@@ -192,7 +205,7 @@ end
 
 function Server:sync(ent)
     if ent.__despawned then
-        self.needsSend[ent.__id] = DESPAWNED
+        self.needsSend[ent.__id] = SYNC_DESTRUCT
     else
         self.needsSend[ent.__id] = ent
     end
@@ -206,27 +219,45 @@ function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all conn
         return
     end
 
-    -- Unset `__local` and `__mgr` so they aren't sent, then restore
+    -- Collect relevant syncs per peer we're sending too
+    local peerToRelevants = {}
+    local controllers = peer and { [peer] = self.controllers[peer] } or self.controllers
+    for peer, controller in pairs(controllers) do
+        local relevants = {}
+        for id, sync in pairs(syncs) do
+            if sync ~= SYNC_DESTRUCT and sync.isRelevant and not sync:isRelevant(controller) then
+                sync = SYNC_DESTRUCT
+            end
+            if not (sync == SYNC_DESTRUCT and not self.peerHas[peer][id]) then
+                relevants[id] = sync
+            end
+            self.peerHas[peer][id] = sync ~= SYNC_DESTRUCT and true or nil
+        end
+        if next(relevants) then -- Non-empty?
+            peerToRelevants[peer] = relevants
+        end
+    end
+    if not next(peerToRelevants) then -- Empty?
+        return
+    end
+
+    -- Unset `__local` and `__mgr` so they aren't sent, send, then restore
     local locals = {}
     for _, sync in pairs(syncs) do
-        if sync ~= DESPAWNED then
+        if type(sync) == 'table' then
             sync.__mgr = nil
             locals[sync] = sync.__local
             sync.__local = nil
         end
     end
-    local data = rpcToData('receiveSyncs', bitser.dumps(syncs)) -- TODO(nikki): `:getSync()` event
+    for peer, relevants in pairs(peerToRelevants) do
+        peer:send(rpcToData('receiveSyncs', bitser.dumps(relevants)))
+    end
     for _, sync in pairs(syncs) do
-        if sync ~= DESPAWNED then
+        if type(sync) == 'table' then
             sync.__mgr = self
             sync.__local = locals[sync]
         end
-    end
-
-    if peer then
-        peer:send(data)
-    else
-        self.host:broadcast(data)
     end
 end
 
@@ -263,10 +294,9 @@ function Common:applyReceivedSyncs()
     -- Actually apply the syncs
     local syncedEnts = {}
     for id, sync in pairs(latestSyncs) do
-        if sync == DESPAWNED then
+        if sync == SYNC_DESTRUCT then
             local ent = self.all[id]
             if ent then
-                ent.__despawned = true
                 self.all[id] = nil
                 self:destruct(ent)
             end
@@ -345,6 +375,7 @@ function Server:didConnect(peer)
     assert(not self.controllers[peer], "controller for `peer` already exists")
     local controller = self:spawn(self.controllerTypeName)
     self.controllers[peer] = controller
+    self.peerHas[peer] = {}
     self:sendSyncs(peer, self.all)
     peer:send(rpcToData('receiveControllerId', controller.__id))
 end
@@ -355,6 +386,7 @@ end
 function Server:didDisconnect(peer)
     local controller = assert(self.controllers[peer], "no controller for this `peer`")
     self.controllers[peer] = nil
+    self.peerHas[peer] = nil
     self:despawn(controller)
 end
 
