@@ -3,22 +3,12 @@ local sync = require 'sync'
 
 local W, H = 800, 600
 
--- `love.graphics.stacked([arg], foo)` calls `foo` between `love.graphics.push([arg])` and
+-- `love.graphics.stacked([arg], func)` calls `func` between `love.graphics.push([arg])` and
 -- `love.graphics.pop()` while being resilient to errors
-function love.graphics.stacked(...)
-    local arg, func
-    if select('#', ...) == 1 then
-        func = select(1, ...)
-    else
-        arg = select(1, ...)
-        func = select(2, ...)
-    end
-    love.graphics.push(arg)
-
-    local succeeded, err = pcall(func)
-
+function love.graphics.stacked(argOrFunc, funcOrNil)
+    love.graphics.push(funcOrNil and argOrFunc)
+    local succeeded, err = pcall(funcOrNil or argOrFunc)
     love.graphics.pop()
-
     if not succeeded then
         error(err, 0)
     end
