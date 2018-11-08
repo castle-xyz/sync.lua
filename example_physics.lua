@@ -146,29 +146,29 @@ end
 local Controller = sync.registerType('Controller')
 
 function Controller:didSpawn()
-    self.player = self.__mgr:spawn('Player')
+    self.playerId = self.__mgr:spawn('Player')
     for i = 1, 5 do
         self.__mgr:spawn('Player')
     end
 end
 
 function Controller:willDespawn()
-    if self.player then
-        self.__mgr:despawn(self.player)
-        self.player = nil
+    if self.playerId then
+        self.__mgr:despawn(self.playerId)
+        self.playerId = nil
     end
 end
 
 function Controller:setWalkState(walkState)
-    if self.player then
-        self.player.walkState = walkState
+    if self.playerId then
+        self.__mgr:byId(self.playerId).walkState = walkState
     end
 end
 
 function Controller:setShouldDestroy(shouldDestroy)
-    if shouldDestroy and self.player then
-        self.__mgr:despawn(self.player)
-        self.player = nil
+    if shouldDestroy and self.playerId then
+        self.__mgr:despawn(self.playerId)
+        self.playerId = nil
     end
 end
 
@@ -233,7 +233,7 @@ function love.keypressed(k)
     end
     if k == '2' then
         for i = 1, 2 do
-            table.insert(clients, sync.newClient { address = '192.168.1.80:22122' })
+            table.insert(clients, sync.newClient { address = '10.0.1.39:22122' })
         end
     end
     if k == '3' then
