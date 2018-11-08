@@ -247,7 +247,17 @@ function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all conn
                 sync = SYNC_DESTRUCT
             end
             if not (sync == SYNC_DESTRUCT and not self.peerHas[peer][id]) then
-                relevants[id] = sync
+                local savedLocal
+                if sync ~= SYNC_DESTRUCT then
+                    sync.__mgr = nil
+                    savedLocal = sync.__local
+                    sync.__local = nil
+                end
+                relevants[id] = bitser.dumps(sync)
+                if sync ~= SYNC_DESTRUCT then
+                    sync.__mgr = self
+                    sync.__local = savedLocal
+                end
             end
             self.peerHas[peer][id] = sync ~= SYNC_DESTRUCT and true or nil
         end
@@ -260,36 +270,23 @@ function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all conn
     end
 
     -- Unset `__local` and `__mgr` so they aren't sent, send, then restore
-    local locals = {}
-    for _, sync in pairs(syncs) do
-        if type(sync) == 'table' then
-            sync.__mgr = nil
-            locals[sync] = sync.__local
-            sync.__local = nil
-        end
-    end
     for peer, relevants in pairs(peerToRelevants) do
         peer:send(rpcToData('receiveSyncs', relevants))
-    end
-    for _, sync in pairs(syncs) do
-        if type(sync) == 'table' then
-            sync.__mgr = self
-            sync.__local = locals[sync]
-        end
     end
 end
 
 defRpc('receiveSyncs')
-function Client:receiveSyncs(peer, syncs)
-    for id, sync in pairs(syncs) do
-        self.incomingSyncs[id] = sync
+function Client:receiveSyncs(peer, dumps)
+    for id, dump in pairs(dumps) do
+        self.incomingSyncs[id] = dump
     end
 end
 
 function Common:applyReceivedSyncs()
     -- Apply the syncs
     local syncedEnts = {}
-    for id, sync in pairs(self.incomingSyncs) do
+    for id, dump in pairs(self.incomingSyncs) do
+        local sync = bitser.loads(dump)
         if sync == SYNC_DESTRUCT then
             local ent = self.all[id]
             if ent then
