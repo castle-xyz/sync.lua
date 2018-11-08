@@ -1,4 +1,4 @@
-# Basic tutorial
+# Tutorial - Basic
 
 In this tutorial we will build up to '[example_basic.lua](../example_basic.lua)'. In this example, each player that connects is given a single randomly-colored circle that they can move around on screen. You can see other players' circles too!
 
