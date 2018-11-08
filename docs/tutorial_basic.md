@@ -331,6 +331,7 @@ That's it for this basic tutorial! To recap, here are the concepts we went over:
 - **Controllers**: Each client has a controller entity representing it, whose lifetime matches the client's connection. Clients can remotely call methods on the server controller instance through the local replica at `client.controller`.
 - **The `:didSpawn` event**: *sync.lua* calls `:didSpawn` on an entity when it is spawned.
 - **`self.__mgr`, `:spawn` and `:despawn` calls**: Every entity has a `self.__mgr`, its *manager*, that lets you spawn new  entities or despawn existing ones.
+- **The `:byId` call**: `self.__mgr:byId(<id>)` lets you find an entity by its *id* -- a unique integer that identifies that entity as returned by `:spawn`.
 - **The `:sync` call**: *sync.lua* needs you to explicitly call `self.__mgr:sync(<entity>)` specifying the entity to mark as needing synchronization.
 
 All the other concepts used here--such drawing and updating--are from regular LÖVE game development. All *sync.lua* does is synchronize entity state and lifetimes among multiple computers, it isn't involved with updating, drawing, input or other game logic. This lets you implement those things in a way suited to your particular game.
