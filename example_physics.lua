@@ -1,7 +1,7 @@
 local sync = require 'sync'
 
 
-local W, H = 400, 300
+local W, H = 800, 600
 
 -- `love.graphics.stacked([arg], foo)` calls `foo` between `love.graphics.push([arg])` and
 -- `love.graphics.pop()` while being resilient to errors
@@ -147,7 +147,7 @@ local Controller = sync.registerType('Controller')
 
 function Controller:didSpawn()
     self.playerId = self.__mgr:spawn('Player')
-    for i = 1, 5 do
+    for i = 1, 50 do
         self.__mgr:spawn('Player')
     end
 end
@@ -176,7 +176,7 @@ end
 -- 4 clients
 
 local server
-local clients = {}
+local client
 
 function love.update(dt)
     if server then
@@ -189,7 +189,7 @@ function love.update(dt)
         server:process()
     end
 
-    for _, client in pairs(clients) do
+    if client then
         client:process()
 
         for id, ent in pairs(client.all) do
@@ -201,23 +201,14 @@ function love.update(dt)
 end
 
 local function handleKeyboardInput()
-    if clients[1] and clients[1].controller then
-        clients[1].controller:setWalkState({
+    if client and client.controller then
+        client.controller:setWalkState({
             up = love.keyboard.isDown('up'),
             down = love.keyboard.isDown('down'),
             left = love.keyboard.isDown('left'),
             right = love.keyboard.isDown('right'),
         })
-        clients[1].controller:setShouldDestroy(love.keyboard.isDown('i'))
-    end
-    if clients[2] and clients[2].controller then
-        clients[2].controller:setWalkState({
-            up = love.keyboard.isDown('w'),
-            down = love.keyboard.isDown('s'),
-            left = love.keyboard.isDown('a'),
-            right = love.keyboard.isDown('d'),
-        })
-        clients[2].controller:setShouldDestroy(love.keyboard.isDown('o'))
+        client.controller:setShouldDestroy(love.keyboard.isDown('i'))
     end
 end
 
@@ -232,15 +223,11 @@ function love.keypressed(k)
         server:spawn('Room')
     end
     if k == '2' then
-        for i = 1, 2 do
-            table.insert(clients, sync.newClient { address = '10.0.1.39:22122' })
-        end
+        client = sync.newClient { address = '10.0.1.39:22122' }
     end
     if k == '3' then
-        for _, client in ipairs(clients) do
-            client:disconnect()
-        end
-        clients = {}
+        client:disconnect()
+        client = nil
     end
 end
 
@@ -249,15 +236,8 @@ function love.keyreleased(k)
 end
 
 function love.draw()
-    for i, client in ipairs(clients) do
+    if client then
         love.graphics.stacked('all', function()
-            local dx = (require('bit')).band(i - 1, 1) * W
-            local dy = (require('bit')).band(i - 1, 2) / 2 * H
-
-            love.graphics.translate(dx, dy)
-            love.graphics.setScissor(dx, dy, W, H)
-            love.graphics.print('client ' .. client.serverPeer:state(), 20, 20)
-
             local drawOrder = {}
             for id, ent in pairs(client.all) do
                 if ent.draw then
