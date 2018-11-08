@@ -138,6 +138,17 @@ function Common:callRpc(peer, name, ...)
 end
 
 
+-- Querying
+
+function Common:byId(id)
+    if id == nil then
+        error('attempted to look up a `nil` id')
+    end
+    local ent = assert(self.all[id], 'no entity with id ' .. id)
+    return ent
+end
+
+
 -- Spawning
 
 function Common:construct(typeName, ...)
@@ -174,20 +185,23 @@ function Common:destruct(ent)
 end
 
 function Server:spawn(typeName, ...)
+    local id = genId()
     local ent = self:construct(typeName, ...)
-    ent.__id = genId()
+    ent.__id = id
 
-    self.all[ent.__id] = ent
+    self.all[id] = ent
 
     if ent.didSpawn then
         ent:didSpawn(...)
     end
     self:sync(ent)
 
-    return ent
+    return id, ent
 end
 
-function Server:despawn(ent)
+function Server:despawn(entOrId)
+    local ent = type(entOrId) == 'table' and entOrId or self:byId(entOrId)
+
     if ent.__despawned then
         return
     end
@@ -206,7 +220,8 @@ end
 
 -- Sync
 
-function Server:sync(ent)
+function Server:sync(entOrId)
+    local ent = type(entOrId) == 'table' and entOrId or self:byId(entOrId)
     if ent.__despawned then
         self.outgoingSyncs[ent.__id] = SYNC_DESTRUCT
     else
@@ -214,7 +229,7 @@ function Server:sync(ent)
     end
 end
 
-function Client:sync(ent)
+function Client:sync(entOrId)
 end
 
 function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all connected peers
@@ -350,11 +365,11 @@ end
 
 function Server:didConnect(peer)
     assert(not self.controllers[peer], "controller for `peer` already exists")
-    local controller = self:spawn(self.controllerTypeName)
+    local controllerId, controller = self:spawn(self.controllerTypeName)
     self.controllers[peer] = controller
     self.peerHas[peer] = {}
     self:sendSyncs(peer, self.all)
-    peer:send(rpcToData('receiveControllerId', controller.__id))
+    peer:send(rpcToData('receiveControllerId', controllerId))
 end
 
 function Client:didConnect()

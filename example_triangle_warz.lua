@@ -304,31 +304,31 @@ end
 local Controller = sync.registerType('Controller')
 
 function Controller:didSpawn()
-    self.triangle = self.__mgr:spawn('Triangle')
+    self.triangleId = self.__mgr:spawn('Triangle')
 end
 
 function Controller:willDespawn()
-    if self.triangle then
-        self.__mgr:despawn(self.triangle)
-        self.triangle = nil
+    if self.triangleId then
+        self.__mgr:despawn(self.triangleId)
+        self.triangleId = nil
     end
 end
 
 function Controller:setTarget(x, y)
-    if self.triangle then
-        self.triangle:setTarget(x, y)
+    if self.triangleId then
+        self.__mgr:byId(self.triangleId):setTarget(x, y)
     end
 end
 
 function Controller:setWantToShoot(wantToShoot)
-    if self.triangle then
-        self.triangle:setWantToShoot(wantToShoot)
+    if self.triangleId then
+        self.__mgr:byId(self.triangleId):setWantToShoot(wantToShoot)
     end
 end
 
 function Controller:setWantToWalk(up, down, left, right)
-    if self.triangle then
-        self.triangle:setWantToWalk(up, down, left, right)
+    if self.triangleId then
+        self.__mgr:byId(self.triangleId):setWantToWalk(up, down, left, right)
     end
 end
 
