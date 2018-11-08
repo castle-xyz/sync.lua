@@ -237,7 +237,7 @@ function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all conn
         return
     end
 
-    -- Memoized function to dump `sync`s so we only serialize each required entity once
+    -- Memoized function to dump from `syncs` so we only serialize each required entity once
     local allDumps = {}
     local function getDump(id)
         local dump = allDumps[id]
