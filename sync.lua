@@ -165,8 +165,8 @@ function Common:destruct(ent)
         return
     end
 
-    if ent.didDestruct then
-        ent:didDestruct()
+    if ent.willDestruct then
+        ent:willDestruct()
     end
 
     ent.__destructed = true

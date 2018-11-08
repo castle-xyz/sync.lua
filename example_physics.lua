@@ -74,7 +74,7 @@ function Player:didConstruct()
     self:createBody()
 end
 
-function Player:didDestruct()
+function Player:willDestruct()
     if self.__local.body then
         self.__local.body:destroy()
     end

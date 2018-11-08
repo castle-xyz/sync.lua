@@ -276,12 +276,6 @@ function Explosion:didSync()
     end
 end
 
-function Explosion:destruct()
-    if self.__local.particles then
-        self.__local.particles:destroy()
-    end
-end
-
 function Explosion:update(dt)
     self.lifetime = self.lifetime - dt
     if self.__mgr.isServer and self.lifetime <= -2 then
