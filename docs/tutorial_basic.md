@@ -171,18 +171,15 @@ Finally, let's make the `Controller` spawn a new `Player` instance on connecting
 
 ```lua
 function Controller:didSpawn()
-    self.player = self.__mgr:spawn('Player')
+    self.playerId = self.__mgr:spawn('Player')
 end
 
 function Controller:willDespawn()
-    self.__mgr:despawn(self.player)
-    self.player = nil
+    self.__mgr:despawn(self.playerId)
 end
 ```
 
-`self.__mgr` is the "manager" for an entity, which can be used to spawn other entities or despawn entities (including an entity despawning itself).
-
-It's important that we set `self.player` to `nil` after despawning it so that we don't sync a stale reference to the client. In general make sure to `nil`-out references to despawned entities. *sync.lua* will throw an error notifying you if it notices stale references when sync'ing.
+`self.__mgr` is the "manager" for an entity, which can be used to spawn other entities or despawn entities (including an entity despawning itself). The `:spawn()` function returns the *id* of the entity, which is a unique integer that identifies that entity. We save this as `self.playerId` so we can use it later to control the `Player`.
 
 Now re-run the game on the first computer and press '1' to launch the server, then '2' to connect as a client. You should see a circle! Re-run the second instance of the game (on either the same or a different computer) and press '2' and you'll see another circle pop up! You should see two circles on both instances, with the second one having popped up only when you connected from the second instance of the game. This will be the normal way to re-run the game from now on. At this point your game should look something like this (with your own random positions and random colors):
 
@@ -198,11 +195,11 @@ Any method defined on a `Controller` can be called from the client. Let's add a 
 
 ```lua
 function Controller:setWalkState(up, down, left, right)
-    self.player:setWalkState(up, down, left, right)
+    self.__mgr:byId(self.playerId):setWalkState(up, down, left, right)
 end
 ```
 
-We'll pass `true` or `false` for each parameter depending on whether we want the `Player` to walk in that direction. Of course, we haven't defined this method on `Player` yet, so let's do that. We'll use `vx` and `vy` properties on `Player` to keep track of the velocity:
+`self.__mgr:byId(<id>)` lets you find entities by their id. Here we use it to find the `Player` for this controller. We'll pass `true` or `false` for each parameter depending on whether we want the `Player` to walk in that direction. Of course, we haven't defined this method on `Player` yet, so let's do that. We'll use `vx` and `vy` properties on `Player` to keep track of the velocity:
 
 ```lua
 function Player:setWalkState(up, down, left, right)
@@ -276,11 +273,9 @@ end
 
 This way we only call `:setWalkState` on key presses or key releases that should actually affect walking state. Controller method calls from clients need to go over the network, so make sure not to add needless calls (an example would be calling it every frame in this case, rather then only when the relevant keys are pressed or released). Here `client.controller` is a local proxy for the controller that forwards method calls to the server. If the client is still connecting or is disconnected, `client.controller` will be `nil`, so we check this before calling methods.
 
-We've made quite some changes so you can check out the final state of the file at this stage [here](https://github.com/expo/sync.lua/blob/79ea997a7552bf66d68f47213430f29cc787a5df/example_basic.lua) if anything's unclear.
-
 Now re-run the game (through the process described at the end of the last section) and you should be able to use the arrow keys move the circles around from each computer!
 
-Each client only moves the circle that it owns. How does this happen? Each client gets a `Controller` spawned for it on connecting. So there are two `Controller`s. Due to our own code, each `Controller` spawns a `Player` and saves it as `self.player`, so there are two `Player`s too (hence we see two circles on screen). When you call `:setWalkState` from the client, it is *only* called on the `Controller` instance *for that client* on the server. This way the logic is properly routed to the correct `Player` instance.
+Each client only moves the circle that it owns. How does this happen? Each client gets a `Controller` spawned for it on connecting. So there are two `Controller`s. Due to our own code, each `Controller` spawns a `Player`, so there are two `Player`s too (hence we see two circles on screen). When you call `:setWalkState` from the client, it is *only* called on the `Controller` instance *for that client* on the server. This way the logic is properly routed to the correct `Player` instance.
 
 You might be thinking, why do we have `Controller` at all, why not just have `Player` be the entity on which you can call methods on the server from the client? In a more involved game, it could be that the `Player` instance is destroyed due to some event (such as something exploding nearby). In some other games, there may not even be a clear `Player` instance too (consider multiplayer chess). Designating some type as always existing per client, independent of the lifetime of gameplay-related entities like `Player`, makes *sync.lua*'s own method routing logic simple and lets you define these game-specific cases in your `Controller`.
 
@@ -304,14 +299,14 @@ function Player:draw(isOwn)
 end
 ```
 
-Now, in `love.draw` we should call this passing `true` if it's the user's own `Player`. In `love.draw`, we iterate through entities in `client.all`, which is a table containing the local replicas of the games entities. Since we set `self.player` in `Controller`, and `client.controller` refers to the local `Controller` replica for a client, `client.controller.player` will refer to the local `Player` replica for that client. *sync.lua* properly points entity cross-references to the correct local replicas when synchronizing. So we can change `love.draw` to the following:
+Now, in `love.draw` we should call this passing `true` if it's the user's own `Player`. In `love.draw`, we iterate through entities in `client.all`, which is a table containing the local replicas of the games entities. Since we set `self.playerId` in `Controller`, and `client.controller` refers to the local `Controller` replica for a client, `client.controller.playerId` would be the id of the `Player` for `client`. So we can change `love.draw` to the following:
 
 ```lua
 function love.draw()
     if client and client.controller then
         for _, ent in pairs(client.all) do
             if ent.__typeName == 'Player' then
-                ent:draw(ent == client.controller.player)
+                ent:draw(ent.__id == client.controller.playerId)
             elseif ent.draw then
                 ent:draw()
             end

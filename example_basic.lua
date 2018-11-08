@@ -42,16 +42,15 @@ end
 local Controller = sync.registerType('Controller')
 
 function Controller:didSpawn()
-    self.player = self.__mgr:spawn('Player')
+    self.playerId = self.__mgr:spawn('Player')
 end
 
 function Controller:willDespawn()
-    self.__mgr:despawn(self.player)
-    self.player = nil
+    self.__mgr:despawn(self.playerId)
 end
 
 function Controller:setWalkState(up, down, left, right)
-    self.player:setWalkState(up, down, left, right)
+    self.__mgr:byId(self.playerId):setWalkState(up, down, left, right)
 end
 
 
@@ -104,7 +103,7 @@ function love.draw()
     if client and client.controller then
         for _, ent in pairs(client.all) do
             if ent.__typeName == 'Player' then
-                ent:draw(ent == client.controller.player)
+                ent:draw(ent.__id == client.controller.playerId)
             elseif ent.draw then
                 ent:draw()
             end
