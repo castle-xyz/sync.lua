@@ -81,7 +81,7 @@ function Server:init(props)
 
     self.host = enet.host_create(props.address or '*:22122')
     if not self.host then
-        error("couldn't create server, maybe the port is already in use?")
+        error("couldn't create server, port may already be in use")
     end
     self.host:bandwidth_limit(BANDWIDTH_LIMIT, BANDWIDTH_LIMIT)
 
