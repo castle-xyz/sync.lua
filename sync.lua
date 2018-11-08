@@ -80,6 +80,9 @@ function Server:init(props)
         "server needs `props.controllerTypeName`")
 
     self.host = enet.host_create(props.address or '*:22122')
+    if not self.host then
+        error("couldn't create server, maybe the port is already in use?")
+    end
     self.host:bandwidth_limit(BANDWIDTH_LIMIT, BANDWIDTH_LIMIT)
 
     self.controllers = {} -- `peer` -> `ent` for controller for that peer
