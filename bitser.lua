@@ -182,12 +182,9 @@ end
 local function write_table(value, seen)
     depth = depth + 1
 
-    if depth > 2 and is_entity(value) then --entity reference
-        seen[value] = nil
-        seen[lenSentinel] = seen[lenSentinel] - 1
-        Buffer_write_byte(251)
-        serialize_value(value.__id, seen)
-        serialize_value(value.__typeId, seen)
+    if depth > 3 and is_entity(value) then --entity reference
+        error("attempted to sync direct reference to entity " .. value.__id .. " of type '" ..
+                value.__typeName .. "'")
     else
         local classkey
         local classname = (class_name_registry[value.class] -- MiddleClass
@@ -357,13 +354,6 @@ local function deserialize_value(seen)
 	elseif t == 250 then
 		--short int
 		return Buffer_read_data("int16_t[1]", 2)[0]
-    elseif t == 251 then
-        --entity reference
-        assert(__DESERIALIZE_ENTITY_REF,
-            "need `__DESERIALIZE_ENTITY_REF` to deserialize deep entity reference")
-        local id = deserialize_value(seen)
-        local typeId = deserialize_value(seen)
-        return __DESERIALIZE_ENTITY_REF(id, typeId)
 	else
 		error("unsupported serialized type " .. t)
 	end

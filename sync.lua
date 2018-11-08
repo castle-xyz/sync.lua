@@ -85,9 +85,9 @@ function Server:init(props)
     end
     self.host:bandwidth_limit(BANDWIDTH_LIMIT, BANDWIDTH_LIMIT)
 
-    self.controllers = {} -- `peer` -> `ent` for controller for that peer
+    self.controllers = {} -- `peer` -> controller
 
-    self.needsSend = {} -- `ent.__id` -> (`ent` or `SYNC_DESTRUCT`)
+    self.outgoingSyncs = {} -- `ent.__id` -> (`ent` or `SYNC_DESTRUCT`)
     self.peerHas = {} -- `peer` -> `ent.__id` -> `true` for all sync'd on `peer`
 end
 
@@ -104,7 +104,7 @@ function Client:init(props)
     self.serverPeer = self.host:connect(props.address)
     self.controller = nil
 
-    self.receivedSyncsDumps = {} -- Received syncs (in serialized form) pending apply
+    self.incomingSyncs = {} -- `ent.__id` -> (`ent` or `SYNC_DESTRUCT`)
 end
 
 function Client:disconnect()
@@ -208,9 +208,9 @@ end
 
 function Server:sync(ent)
     if ent.__despawned then
-        self.needsSend[ent.__id] = SYNC_DESTRUCT
+        self.outgoingSyncs[ent.__id] = SYNC_DESTRUCT
     else
-        self.needsSend[ent.__id] = ent
+        self.outgoingSyncs[ent.__id] = ent
     end
 end
 
@@ -222,7 +222,7 @@ function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all conn
         return
     end
 
-    -- Collect relevant syncs per peer we're sending too
+    -- Collect relevant syncs per peer we're sending to
     local peerToRelevants = {}
     local controllers = peer and { [peer] = self.controllers[peer] } or self.controllers
     for peer, controller in pairs(controllers) do
@@ -254,7 +254,7 @@ function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all conn
         end
     end
     for peer, relevants in pairs(peerToRelevants) do
-        peer:send(rpcToData('receiveSyncs', bitser.dumps(relevants)))
+        peer:send(rpcToData('receiveSyncs', relevants))
     end
     for _, sync in pairs(syncs) do
         if type(sync) == 'table' then
@@ -266,38 +266,15 @@ end
 
 defRpc('receiveSyncs')
 function Client:receiveSyncs(peer, syncs)
-    table.insert(self.receivedSyncsDumps, syncs)
+    for id, sync in pairs(syncs) do
+        self.incomingSyncs[id] = sync
+    end
 end
 
 function Common:applyReceivedSyncs()
-    -- New entities may be constructed while sync'ing
-    local unsyncedEnts = {} -- New entities that haven't received a sync yet -- verify later
-    local function getOrConstruct(id, typeId)
-        local ent = self.all[id]
-        if not ent then
-            ent = self:construct(typeIdToName[typeId])
-            ent.__id = id
-            self.all[id] = ent
-            unsyncedEnts[id] = ent
-        end
-        return ent
-    end
-
-    -- Collect latest syncs per-entity
-    local latestSyncs = {}
-    __DESERIALIZE_ENTITY_REF = getOrConstruct -- bitser calls this to deserialize entity references
-    for _, dump in pairs(self.receivedSyncsDumps) do
-        local syncs = bitser.loads(dump)
-        for id, sync in pairs(syncs) do
-            latestSyncs[id] = sync
-        end
-    end
-    __DESERIALIZE_ENTITY_REF = nil
-    self.receivedSyncsDumps = {}
-
-    -- Actually apply the syncs
+    -- Apply the syncs
     local syncedEnts = {}
-    for id, sync in pairs(latestSyncs) do
+    for id, sync in pairs(self.incomingSyncs) do
         if sync == SYNC_DESTRUCT then
             local ent = self.all[id]
             if ent then
@@ -305,8 +282,12 @@ function Common:applyReceivedSyncs()
                 self:destruct(ent)
             end
         else
-            local ent = getOrConstruct(id, sync.__typeId)
-            unsyncedEnts[id] = nil
+            local ent = self.all[id]
+            if not ent then
+                ent = self:construct(typeIdToName[sync.__typeId])
+                ent.__id = id
+                self.all[id] = ent
+            end
 
             local savedLocal = ent.__local
             local defaultSyncBehavior = true
@@ -328,13 +309,7 @@ function Common:applyReceivedSyncs()
             syncedEnts[ent] = true
         end
     end
-
-    -- Verify references
-    for id, ent in pairs(unsyncedEnts) do
-        error('received a reference to entity ' .. id .. " of type '" .. ent.__typeName .. "' " ..
-                'but did not receive a sync for it -- make sure to `nil` out references to ' ..
-                'despawned entities')
-    end
+    self.incomingSyncs = {}
 
     -- Call events
     for ent in pairs(syncedEnts) do
@@ -428,8 +403,8 @@ function Common:process()
 end
 
 function Server:processSyncs()
-    self:sendSyncs(nil, self.needsSend)
-    self.needsSend = {}
+    self:sendSyncs(nil, self.outgoingSyncs)
+    self.outgoingSyncs = {}
 end
 
 function Client:processSyncs()
