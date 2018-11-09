@@ -249,8 +249,8 @@ function love.draw()
             love.graphics.setLineWidth(3)
             love.graphics.rectangle('line', mx, my, MINIMAP_SIZE, MINIMAP_SIZE)
             for id, ent in pairs(client.allPerType.Player) do
-                local px = mx + 0.5 * MINIMAP_SIZE + 0.5 * MINIMAP_SIZE * ent.x / WORLD_SIZE
-                local py = my + 0.5 * MINIMAP_SIZE + 0.5 * MINIMAP_SIZE * ent.y / WORLD_SIZE
+                local px = mx + 0.5 * MINIMAP_SIZE + MINIMAP_SIZE * ent.x / WORLD_SIZE
+                local py = my + 0.5 * MINIMAP_SIZE + MINIMAP_SIZE * ent.y / WORLD_SIZE
                 if id == player.__id then
                     love.graphics.setColor(0, 1, 0, 1)
                 else
