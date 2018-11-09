@@ -5,7 +5,7 @@ local moonshine = require 'https://raw.githubusercontent.com/nikki93/moonshine/9
 
 
 
--- Constants
+-- 'Globals'
 
 local SERVER_ADDRESS = '207.254.45.246'
 
