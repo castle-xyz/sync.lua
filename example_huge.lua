@@ -40,7 +40,11 @@ function World:didSpawn()
             WORLD_SIZE_X * (0.5 - math.random()),
             WORLD_SIZE_Y * (0.5 - math.random()))
     end
-    print('`World` ready')
+    self.numStuffs = WORLD_NUM_STUFFS
+end
+
+function World:didEnter()
+    World.instance = self
 end
 
 
@@ -97,14 +101,31 @@ end
 
 
 
+-- Player
+
+local Player = sync.registerType('Player')
+
+function Player:didSpawn()
+    self.x, self.y = 0, 0
+end
+
+function Player:update(dt)
+    self.x = self.x + dt
+    self.__mgr:sync(self)
+end
+
+
+
 -- Controller
 
 local Controller = sync.registerType('Controller')
 
 function Controller:didSpawn()
+    self.playerId = self.__mgr:spawn('Player')
 end
 
 function Controller:willDespawn()
+    self.__mgr:despawn(self.playerId)
 end
 
 
@@ -148,12 +169,22 @@ end
 
 
 function love.draw()
-    love.graphics.stacked('all', function()
-        local ww, wh = love.graphics.getDimensions()
-        love.graphics.translate(ww / 2, wh / 2)
+    if client and client.controller then
+        love.graphics.stacked('all', function()
+            local ww, wh = love.graphics.getDimensions()
+            love.graphics.translate(ww / 2, wh / 2)
 
-        love.graphics.scale(WORLD_SCALE)
+            love.graphics.scale(WORLD_SCALE)
 
-        Stuff.drawAll()
-    end)
+            local player = client:byId(client.controller.playerId)
+            love.graphics.translate(-player.x, -player.y)
+
+            Stuff.drawAll()
+        end)
+    end
+
+    if World.instance then
+        love.graphics.print('total: ' .. World.instance.numStuffs, 20, 20)
+        love.graphics.print('\nrelevant: ' .. #Stuff.drawOrder, 20, 20)
+    end
 end
