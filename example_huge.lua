@@ -6,10 +6,8 @@ local sync = require 'sync'
 
 local SERVER_ADDRESS = '10.0.1.39'
 
---local WORLD_SIZE_X, WORLD_SIZE_Y = 1000, 1000
---local WORLD_NUM_STUFFS = 10000
-local WORLD_SIZE_X, WORLD_SIZE_Y = 100, 100
-local WORLD_NUM_STUFFS = 100
+local WORLD_SIZE = 500
+local WORLD_NUM_STUFFS = 5000
 local WORLD_SCALE = 1 -- Update later based on window size
 local DISPLAY_SIZE = 20 -- How many world units wide should we able to see?
 
@@ -37,10 +35,11 @@ function World:didSpawn()
     for i = 1, WORLD_NUM_STUFFS do
         self.__mgr:spawn(
             'Stuff',
-            WORLD_SIZE_X * (0.5 - math.random()),
-            WORLD_SIZE_Y * (0.5 - math.random()))
+            WORLD_SIZE * (0.5 - math.random()),
+            WORLD_SIZE * (0.5 - math.random()))
     end
     self.numStuffs = WORLD_NUM_STUFFS
+    print('world ready')
 end
 
 function World:didEnter()
@@ -53,8 +52,6 @@ end
 
 local Stuff = sync.registerType('Stuff')
 
-Stuff.drawOrder = {}
-
 function Stuff:didSpawn(x, y)
     self.x, self.y = x, y
     self.angle = 2 * math.pi * math.random()
@@ -62,22 +59,12 @@ function Stuff:didSpawn(x, y)
     self.width, self.height = 1 + 10 * math.random(), 1 + 10 * math.random()
     self.radius = 0.5 * math.sqrt(self.width * self.width + self.height * self.height)
     self.r, self.g, self.b = 0.1 + 0.7 * math.random(), 0.2 * math.random(), 0.2 + 0.5 * math.random()
-    self.depth = math.random(2 ^ 30)
 end
 
 function Stuff:isRelevant(controller)
     local player = self.__mgr:byId(controller.playerId)
     local dx, dy = math.abs(self.x - player.x), math.abs(self.y - player.y)
     return math.max(dx, dy) - self.radius < 0.5 * DISPLAY_SIZE
-end
-
-function Stuff:didEnter()
-    table.insert(Stuff.drawOrder, self)
-    self.__local.drawOrderIndex = #Stuff.drawOrder
-end
-
-function Stuff:willLeave()
-    table.remove(Stuff.drawOrder, self.__local.drawOrderIndex)
 end
 
 function Stuff:update(dt)
@@ -96,23 +83,13 @@ function Stuff:draw()
     end)
 end
 
-function Stuff.drawAll()
-    table.sort(Stuff.drawOrder, function(s, t) return s.depth < t.depth end)
-    for index, ent in ipairs(Stuff.drawOrder) do
-        ent.__local.drawOrderIndex = index
-    end
-    for _, ent in ipairs(Stuff.drawOrder) do
-        ent:draw()
-    end
-end
-
 
 
 -- Player
 
 local Player = sync.registerType('Player')
 
-Player.DAMPING = 0.4
+Player.DAMPING = 1.5
 Player.DAMPING_BASE = math.pow(1 - Player.DAMPING / 60, 60)
 
 function Player:didSpawn()
@@ -183,7 +160,7 @@ local function setAccelerationFromMouse()
     local ww, wh = love.graphics.getDimensions()
     local md = math.min(ww, wh)
     local dx, dy = x - 0.5 * ww, y - 0.5 * wh
-    client.controller:setAcceleration(5 * dx / md, 5 * dy / md)
+    client.controller:setAcceleration(28 * dx / md, 28 * dy / md)
 end
 
 function love.mousepressed()
@@ -223,6 +200,8 @@ end
 
 function love.draw()
     if client and client.controller then
+        local numDrawables = 0
+
         love.graphics.stacked('all', function()
             local ww, wh = love.graphics.getDimensions()
             love.graphics.translate(ww / 2, wh / 2)
@@ -232,15 +211,27 @@ function love.draw()
             local player = client:byId(client.controller.playerId)
             love.graphics.translate(-player.x, -player.y)
 
-            Stuff.drawAll()
+            local order = {}
+            for _, ent in pairs(client.all) do
+                if ent.draw then
+                    table.insert(order, ent)
+                    numDrawables = numDrawables + 1
+                end
+            end
+            table.sort(order, function(e1, e2) return e1.__id < e2.__id end)
+            for _, ent in ipairs(order) do
+                ent:draw()
+            end
         end)
 
         if World.instance then
-            love.graphics.print('fps: ' .. love.timer.getFPS(), 20, 20)
-            love.graphics.print('\ntotal: ' .. World.instance.numStuffs, 20, 20)
-            love.graphics.print('\n\nrelevant: ' .. #Stuff.drawOrder, 20, 20)
+            love.graphics.print('total: ' .. World.instance.numStuffs, 20, 20)
+            love.graphics.print('\nrelevant: ' .. numDrawables, 20, 20)
+            love.graphics.print('\n\nping: ' .. client.serverPeer:round_trip_time(), 20, 20)
         end
     else
         love.graphics.print('click / touch to connect', 20, 20)
+        love.graphics.print('\npress 0 to start a server', 20, 20)
     end
+    love.graphics.print('fps: ' .. love.timer.getFPS(), 20, love.graphics.getHeight() - 32)
 end
