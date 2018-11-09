@@ -104,7 +104,7 @@ function Client:init(props)
     self.serverPeer = self.host:connect(props.address)
     self.controller = nil
 
-    self.incomingSyncs = {} -- `ent.__id` -> (`ent` or `SYNC_DESTRUCT`)
+    self.incomingSyncDumps = {} -- `ent.__id` -> `bitser.dumps(sync)` or `SYNC_DESTRUCT`
 end
 
 function Client:disconnect()
@@ -272,22 +272,22 @@ function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all conn
             self.peerHas[peer][id] = sync ~= SYNC_DESTRUCT and true or nil
         end
         if next(dumps) then -- Non-empty?
-            peer:send(rpcToData('receiveSyncs', dumps))
+            peer:send(rpcToData('receiveSyncDumps', dumps))
         end
     end
 end
 
-defRpc('receiveSyncs')
-function Client:receiveSyncs(peer, dumps)
+defRpc('receiveSyncDumps')
+function Client:receiveSyncDumps(peer, dumps)
     for id, dump in pairs(dumps) do
-        self.incomingSyncs[id] = dump
+        self.incomingSyncDumps[id] = dump
     end
 end
 
 function Common:applyReceivedSyncs()
     -- Apply the syncs
-    local syncedEnts = {}
-    for id, dump in pairs(self.incomingSyncs) do
+    local synced = {}
+    for id, dump in pairs(self.incomingSyncDumps) do
         local sync = type(dump) == 'string' and bitser.loads(dump) or dump
         if sync == SYNC_DESTRUCT then
             local ent = self.all[id]
@@ -320,13 +320,13 @@ function Common:applyReceivedSyncs()
             end
             ent.__local = savedLocal
             ent.__mgr = self
-            syncedEnts[ent] = true
+            synced[ent] = true
         end
     end
-    self.incomingSyncs = {}
+    self.incomingSyncDumps = {}
 
     -- Call events
-    for ent in pairs(syncedEnts) do
+    for ent in pairs(synced) do
         if ent.didSync then
             ent:didSync()
         end
