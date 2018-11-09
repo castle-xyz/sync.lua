@@ -194,13 +194,11 @@ function Bullet:didSpawn(ownerId, x, y, dirX, dirY, r, g, b)
     self.lifetime = 1
 end
 
-function Bullet:didSync()
-    if not self.__local.didPlaySound then
-        bulletSound:setPitch(1.4 + 0.3 * math.random())
-        bulletSound:stop()
-        bulletSound:play()
-        self.__local.didPlaySound = true
-    end
+function Bullet:didEnter()
+    bulletSound:setPitch(1.4 + 0.3 * math.random())
+    bulletSound:stop()
+    bulletSound:play()
+    self.__local.didPlaySound = true
 end
 
 function Bullet:update(dt)
@@ -247,42 +245,44 @@ function Explosion:didSpawn(x, y, r, g, b, isBig)
     self.lifetime = isBig and 4 or 3
 end
 
-function Explosion:didSync()
-    if not self.__local.particles then
-        self.__local.particles = love.graphics.newParticleSystem(explosionImage, 32)
-        self.__local.particles:setColors(1, 1, 1, 1, 1, 1, 1, 0)
-        self.__local.particles:setEmitterLifetime(self.lifetime)
-        if self.isBig then
-            self.__local.particles:setLinearAcceleration(-70, -70, 70, 70)
-            self.__local.particles:setParticleLifetime(0.6, 1)
-            self.__local.particles:setSizeVariation(0.8)
-            self.__local.particles:setSizes(1.6, 0.7, 0)
-            self.__local.particles:setEmissionArea('ellipse', 20, 20)
-            self.__local.particles:emit(7)
-            bigExplosionSound:setPitch(0.7 + 0.3 * math.random())
-            bigExplosionSound:stop()
-            bigExplosionSound:play()
-        else
-            self.__local.particles:setLinearAcceleration(-160, -160, 160, 160)
-            self.__local.particles:setParticleLifetime(0.3, 0.55)
-            self.__local.particles:setSizeVariation(0.4)
-            self.__local.particles:setSizes(0.2, 0.08, 0)
-            self.__local.particles:setEmissionArea('ellipse', 5, 5)
-            self.__local.particles:emit(24)
-            smallExplosionSound:setPitch(1.4 + 0.3 * math.random())
-            smallExplosionSound:stop()
-            smallExplosionSound:play()
-        end
+function Explosion:didEnter()
+    self.__local.particles = love.graphics.newParticleSystem(explosionImage, 32)
+    self.__local.particles:setColors(1, 1, 1, 1, 1, 1, 1, 0)
+    self.__local.particles:setEmitterLifetime(self.lifetime)
+    if self.isBig then
+        self.__local.particles:setLinearAcceleration(-70, -70, 70, 70)
+        self.__local.particles:setParticleLifetime(0.6, 1)
+        self.__local.particles:setSizeVariation(0.8)
+        self.__local.particles:setSizes(1.6, 0.7, 0)
+        self.__local.particles:setEmissionArea('ellipse', 20, 20)
+        self.__local.particles:emit(7)
+        bigExplosionSound:setPitch(0.7 + 0.3 * math.random())
+        bigExplosionSound:stop()
+        bigExplosionSound:play()
+    else
+        self.__local.particles:setLinearAcceleration(-160, -160, 160, 160)
+        self.__local.particles:setParticleLifetime(0.3, 0.55)
+        self.__local.particles:setSizeVariation(0.4)
+        self.__local.particles:setSizes(0.2, 0.08, 0)
+        self.__local.particles:setEmissionArea('ellipse', 5, 5)
+        self.__local.particles:emit(24)
+        smallExplosionSound:setPitch(1.4 + 0.3 * math.random())
+        smallExplosionSound:stop()
+        smallExplosionSound:play()
     end
 end
 
 function Explosion:update(dt)
-    self.lifetime = self.lifetime - dt
-    if self.__mgr.isServer and self.lifetime <= -2 then
-        self.__mgr:despawn(self)
-    end
     if self.__local.particles then
         self.__local.particles:update(dt)
+    end
+    self.lifetime = self.lifetime - dt
+    if self.__mgr.isServer then
+        if self.lifetime <= -2 then
+            self.__mgr:despawn(self)
+        else
+            self.__mgr:sync(self)
+        end
     end
 end
 
