@@ -10,7 +10,7 @@ local pairs, next, type = pairs, next, type
 
 local BANDWIDTH_LIMIT = 0 -- Bandwidth limit in bytes per second -- 0 for unlimited
 
-local SYNC_DESTRUCT = 1 -- Sentinel to sync entity destruction -- single byte when bitser'd
+local SYNC_LEAVE = 1 -- Sentinel to sync entity leaving -- single byte when bitser'd
 
 
 -- Ids
@@ -87,7 +87,7 @@ function Server:init(props)
 
     self.controllers = {} -- `peer` -> controller
 
-    self.outgoingSyncs = {} -- `ent.__id` -> (`ent` or `SYNC_DESTRUCT`)
+    self.outgoingSyncs = {} -- `ent.__id` -> (`ent` or `SYNC_LEAVE`)
     self.peerHas = {} -- `peer` -> `ent.__id` -> `true` for all sync'd on `peer`
 end
 
@@ -104,7 +104,7 @@ function Client:init(props)
     self.serverPeer = self.host:connect(props.address)
     self.controller = nil
 
-    self.incomingSyncDumps = {} -- `ent.__id` -> `bitser.dumps(sync)` or `SYNC_DESTRUCT`
+    self.incomingSyncDumps = {} -- `ent.__id` -> `bitser.dumps(sync)` or `SYNC_LEAVE`
 end
 
 function Client:disconnect()
@@ -223,7 +223,7 @@ end
 function Server:sync(entOrId)
     local ent = type(entOrId) == 'table' and entOrId or self:byId(entOrId)
     if ent.__despawned then
-        self.outgoingSyncs[ent.__id] = SYNC_DESTRUCT
+        self.outgoingSyncs[ent.__id] = SYNC_LEAVE
     else
         self.outgoingSyncs[ent.__id] = ent
     end
@@ -243,13 +243,13 @@ function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all conn
         local dump = allDumps[id]
         if dump == nil then
             local sync = syncs[id]
-            if sync == SYNC_DESTRUCT then
-                dump = SYNC_DESTRUCT
+            if sync == SYNC_LEAVE then
+                dump = SYNC_LEAVE
             else
                 local savedLocal = sync.__local
                 sync.__local = nil
                 sync.__mgr = nil
-                dump = bitser.dumps(sync)
+                dump = bitser.dumps(sync) -- TODO(nikki): `:toSync` event
                 sync.__local = savedLocal
                 sync.__mgr = self
             end
@@ -263,13 +263,13 @@ function Server:sendSyncs(peer, syncs) -- `peer == nil` to broadcast to all conn
     for peer, controller in pairs(controllers) do
         local dumps = {}
         for id, sync in pairs(syncs) do
-            if sync ~= SYNC_DESTRUCT and sync.isRelevant and not sync:isRelevant(controller) then
-                sync = SYNC_DESTRUCT
+            if sync ~= SYNC_LEAVE and sync.isRelevant and not sync:isRelevant(controller) then
+                sync = SYNC_LEAVE
             end
-            if not (sync == SYNC_DESTRUCT and not self.peerHas[peer][id]) then
-                dumps[id] = sync == SYNC_DESTRUCT and SYNC_DESTRUCT or getDump(id)
+            if not (sync == SYNC_LEAVE and not self.peerHas[peer][id]) then
+                dumps[id] = sync == SYNC_LEAVE and SYNC_LEAVE or getDump(id)
             end
-            self.peerHas[peer][id] = sync ~= SYNC_DESTRUCT and true or nil
+            self.peerHas[peer][id] = sync ~= SYNC_LEAVE and true or nil
         end
         if next(dumps) then -- Non-empty?
             peer:send(rpcToData('receiveSyncDumps', dumps))
@@ -285,47 +285,65 @@ function Client:receiveSyncDumps(peer, dumps)
 end
 
 function Common:applyReceivedSyncs()
-    -- Apply the syncs
-    local synced = {}
+    -- Deserialize syncs and notify leavers
+    local leavers = {} -- `ent.__id` -> `ent` for entities that left
+    local appliable = {} -- `id` -> `sync` for non-leaving syncs
     for id, dump in pairs(self.incomingSyncDumps) do
         local sync = type(dump) == 'string' and bitser.loads(dump) or dump
-        if sync == SYNC_DESTRUCT then
+        if sync == SYNC_LEAVE then
             local ent = self.all[id]
             if ent then
-                self.all[id] = nil
-                self:destruct(ent)
+                if ent.willLeave then
+                    ent:willLeave()
+                end
+                leavers[id] = ent
             end
         else
-            local ent = self.all[id]
-            if not ent then
-                ent = self:construct(typeIdToName[sync.__typeId])
-                ent.__id = id
-                self.all[id] = ent
-            end
-
-            local savedLocal = ent.__local
-            local defaultSyncBehavior = true
-            if ent.willSync then
-                defaultSyncBehavior = ent:willSync(sync)
-            end
-            if defaultSyncBehavior ~= false then
-                for k in pairs(ent) do
-                    if sync[k] == nil then
-                        ent[k] = nil
-                    end
-                end
-                for k, v in pairs(sync) do
-                    ent[k] = v
-                end
-            end
-            ent.__local = savedLocal
-            ent.__mgr = self
-            synced[ent] = true
+            appliable[id] = sync
         end
     end
     self.incomingSyncDumps = {}
 
-    -- Call events
+    -- Destruct leavers
+    for id, ent in pairs(leavers) do
+        self.all[id] = nil
+        self:destruct(ent)
+    end
+
+    -- Apply syncs then notify
+    local synced, enterers = {}, {}
+    for id, sync in pairs(appliable) do
+        local ent = self.all[id]
+        if not ent then -- Entered -- construct and remember to notify later
+            ent = self:construct(typeIdToName[sync.__typeId])
+            ent.__id = id
+            self.all[id] = ent
+            enterers[ent] = true
+        end
+        local defaultSyncBehavior = true
+        if ent.willSync then -- Notify `:willSync` and check if it asks us to skip default syncing
+            defaultSyncBehavior = ent:willSync(sync)
+        end
+        if defaultSyncBehavior ~= false then -- Just copy members by default
+            local savedLocal = ent.__local
+            for k in pairs(ent) do
+                if sync[k] == nil then
+                    ent[k] = nil
+                end
+            end
+            for k, v in pairs(sync) do
+                ent[k] = v
+            end
+            ent.__local = savedLocal
+        end
+        ent.__mgr = self
+        synced[ent] = true
+    end
+    for ent in pairs(enterers) do
+        if ent.didEnter then
+            ent:didEnter()
+        end
+    end
     for ent in pairs(synced) do
         if ent.didSync then
             ent:didSync()
