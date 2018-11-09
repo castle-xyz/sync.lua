@@ -198,6 +198,8 @@ function love.keypressed(key)
 end
 
 
+local startTime
+
 function love.draw()
     if client and client.controller then
         local numDrawables = 0
@@ -228,6 +230,12 @@ function love.draw()
             love.graphics.print('total: ' .. World.instance.numStuffs, 20, 20)
             love.graphics.print('\nrelevant: ' .. numDrawables, 20, 20)
             love.graphics.print('\n\nping: ' .. client.serverPeer:round_trip_time(), 20, 20)
+            local now = love.timer.getTime()
+            if not startTime then
+                startTime = now - 0.01
+            end
+            love.graphics.print("\n\n\nkbps dl'd: " ..
+                    math.floor(0.001 * client.host:total_received_data() / (now - startTime)), 20, 20)
         end
     else
         love.graphics.print('click / touch to connect', 20, 20)
