@@ -7,7 +7,7 @@ local moonshine = require 'https://raw.githubusercontent.com/nikki93/moonshine/9
 
 -- 'Globals'
 
-local SERVER_ADDRESS = '10.0.1.39'
+local SERVER_ADDRESS = '207.254.45.246'
 
 local W, H = 800, 600 -- Game world size
 
