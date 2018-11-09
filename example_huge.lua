@@ -1,5 +1,7 @@
 local sync = require 'sync'
 
+local shash = require 'https://raw.githubusercontent.com/rxi/shash/7e2bbef0193e986bb4e655e18c4e23123e7081d8/shash.lua'
+
 
 
 -- 'Globals'
@@ -52,27 +54,28 @@ end
 
 local Stuff = sync.registerType('Stuff')
 
-local stuffs = {}
+Stuff.shash = shash.new(DISPLAY_SIZE)
 
 function Stuff:didSpawn(x, y)
     self.x, self.y = x, y
     self.angle = 2 * math.pi * math.random()
     self.rotSpeed = 0.1 * 2 * math.pi * math.random()
     self.width, self.height = 1 + 10 * math.random(), 1 + 10 * math.random()
-    self.radius = 0.5 * math.sqrt(self.width * self.width + self.height * self.height)
     self.r, self.g, self.b = 0.1 + 0.7 * math.random(), 0.2 * math.random(), 0.2 + 0.5 * math.random()
-    stuffs[self.__id] = self
+    local dia = math.sqrt(self.width * self.width + self.height * self.height)
+    Stuff.shash:add(self, self.x - 0.5 * dia, self.y - 0.5 * dia, dia, dia)
+end
+
+function Stuff:didDespawn()
+    Stuff.shash:remove(self)
 end
 
 function Stuff.getRelevants(controller)
+    local player = controller.__mgr:byId(controller.playerId)
     local ids = {}
-    for id, stuff in pairs(stuffs) do
-        local player = stuff.__mgr:byId(controller.playerId)
-        local dx, dy = math.abs(stuff.x - player.x), math.abs(stuff.y - player.y)
-        if math.max(dx, dy) - stuff.radius < 0.5 * DISPLAY_SIZE then
-            ids[id] = true
-        end
-    end
+    Stuff.shash:each(
+        player.x - 0.5 * DISPLAY_SIZE, player.y - 0.5 * DISPLAY_SIZE, DISPLAY_SIZE, DISPLAY_SIZE,
+        function(stuff) ids[stuff.__id] = true end)
     return ids
 end
 
