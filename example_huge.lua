@@ -6,10 +6,11 @@ local shash = require 'https://raw.githubusercontent.com/rxi/shash/7e2bbef0193e9
 
 -- 'Globals'
 
-local SERVER_ADDRESS = '10.0.1.39'
+local SERVER_ADDRESS = '207.254.45.246'
 
-local WORLD_SIZE = 500
-local WORLD_NUM_STUFFS = 5000
+local WORLD_MULT = 3
+local WORLD_SIZE = WORLD_MULT * 500
+local WORLD_NUM_STUFFS = WORLD_MULT * WORLD_MULT * 5000
 local WORLD_SCALE = 1 -- Update later based on window size
 local DISPLAY_SIZE = 20 -- How many world units wide should we able to see?
 
@@ -177,7 +178,7 @@ end
 
 function love.mousepressed()
     if not client then
-        client = sync.newClient { address = SERVER_ADDRESS .. ':22122' }
+        client = sync.newClient { address = SERVER_ADDRESS .. ':22124' }
     end
 
     if client and client.controller then
@@ -202,7 +203,7 @@ end
 function love.keypressed(key)
     if key == '0' then
         server = sync.newServer {
-            address = '*:22122',
+            address = '*:22124',
             controllerTypeName = 'Controller',
         }
         server:spawn('World')
