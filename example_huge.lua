@@ -8,10 +8,10 @@ local SERVER_ADDRESS = '10.0.1.39'
 
 --local WORLD_SIZE_X, WORLD_SIZE_Y = 1000, 1000
 --local WORLD_NUM_STUFFS = 10000
-local WORLD_SIZE_X, WORLD_SIZE_Y = 50, 50
+local WORLD_SIZE_X, WORLD_SIZE_Y = 100, 100
 local WORLD_NUM_STUFFS = 100
 local WORLD_SCALE = 1 -- Update later based on window size
-local DISPLAY_WORLD_UNITS_WIDE = 20 -- How many world units wide should we able to see?
+local DISPLAY_SIZE = 20 -- How many world units wide should we able to see?
 
 
 -- Utilities
@@ -60,8 +60,15 @@ function Stuff:didSpawn(x, y)
     self.angle = 2 * math.pi * math.random()
     self.rotSpeed = 0.1 * 2 * math.pi * math.random()
     self.width, self.height = 1 + 10 * math.random(), 1 + 10 * math.random()
+    self.radius = 0.5 * math.sqrt(self.width * self.width + self.height * self.height)
     self.r, self.g, self.b = 0.1 + 0.7 * math.random(), 0.2 * math.random(), 0.2 + 0.5 * math.random()
     self.depth = math.random(2 ^ 30)
+end
+
+function Stuff:isRelevant(controller)
+    local player = self.__mgr:byId(controller.playerId)
+    local dx, dy = math.abs(self.x - player.x), math.abs(self.y - player.y)
+    return math.max(dx, dy) - self.radius < 0.5 * DISPLAY_SIZE
 end
 
 function Stuff:didEnter()
@@ -105,13 +112,26 @@ end
 
 local Player = sync.registerType('Player')
 
+Player.DAMPING = 0.4
+Player.DAMPING_BASE = math.pow(1 - Player.DAMPING / 60, 60)
+
 function Player:didSpawn()
     self.x, self.y = 0, 0
+    self.vx, self.vy = 0, 0
+    self.ax, self.ay = 0, 0
 end
 
 function Player:update(dt)
-    self.x = self.x + dt
+    self.vx, self.vy = self.vx + self.ax * dt, self.vy + self.ay * dt
+    local d = math.pow(Player.DAMPING_BASE, dt)
+    self.vx, self.vy = d * self.vx, d * self.vy
+
+    self.x, self.y = self.x + self.vx * dt, self.y + self.vy * dt
     self.__mgr:sync(self)
+end
+
+function Player:setAcceleration(ax, ay)
+    self.ax, self.ay = ax, ay
 end
 
 
@@ -128,6 +148,10 @@ function Controller:willDespawn()
     self.__mgr:despawn(self.playerId)
 end
 
+function Controller:setAcceleration(ax, ay)
+    self.__mgr:byId(self.playerId):setAcceleration(ax, ay)
+end
+
 
 
 -- Server / client instances and top-level Love callbacks
@@ -136,8 +160,8 @@ local server, client
 
 
 function love.update(dt)
-    local ww = love.graphics.getWidth()
-    WORLD_SCALE = ww / DISPLAY_WORLD_UNITS_WIDE
+    local ww, wh = love.graphics.getDimensions()
+    WORLD_SCALE = math.max(ww, wh) / DISPLAY_SIZE
 
     if server then
         server:process()
@@ -154,6 +178,38 @@ function love.update(dt)
 end
 
 
+local function setAccelerationFromMouse()
+    local x, y = love.mouse.getPosition()
+    local ww, wh = love.graphics.getDimensions()
+    local md = math.min(ww, wh)
+    local dx, dy = x - 0.5 * ww, y - 0.5 * wh
+    client.controller:setAcceleration(5 * dx / md, 5 * dy / md)
+end
+
+function love.mousepressed()
+    if not client then
+        client = sync.newClient { address = SERVER_ADDRESS .. ':22122' }
+    end
+
+    if client and client.controller then
+        setAccelerationFromMouse()
+    end
+end
+
+function love.mousemoved()
+    if client and client.controller then
+        if love.mouse.isDown(1) then
+            setAccelerationFromMouse()
+        end
+    end
+end
+
+function love.mousereleased()
+    if client and client.controller then
+        client.controller:setAcceleration(0, 0)
+    end
+end
+
 function love.keypressed(key)
     if key == '0' then
         server = sync.newServer {
@@ -161,9 +217,6 @@ function love.keypressed(key)
             controllerTypeName = 'Controller',
         }
         server:spawn('World')
-    end
-    if key == 'return' then
-        client = sync.newClient { address = SERVER_ADDRESS .. ':22122' }
     end
 end
 
@@ -181,10 +234,13 @@ function love.draw()
 
             Stuff.drawAll()
         end)
-    end
 
-    if World.instance then
-        love.graphics.print('total: ' .. World.instance.numStuffs, 20, 20)
-        love.graphics.print('\nrelevant: ' .. #Stuff.drawOrder, 20, 20)
+        if World.instance then
+            love.graphics.print('fps: ' .. love.timer.getFPS(), 20, 20)
+            love.graphics.print('\ntotal: ' .. World.instance.numStuffs, 20, 20)
+            love.graphics.print('\n\nrelevant: ' .. #Stuff.drawOrder, 20, 20)
+        end
+    else
+        love.graphics.print('click / touch to connect', 20, 20)
     end
 end
