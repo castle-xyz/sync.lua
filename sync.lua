@@ -151,9 +151,8 @@ end
 
 -- Spawning
 
-function Common:construct(typeName, ...)
+function Common:construct(id, typeName, ...)
     local ent
-
     local ty = assert(typeNameToType[typeName], "no type with name '" .. typeName .. "'")
     if ty.construct then -- User-defined construction
         ent = ty:construct(...)
@@ -161,9 +160,13 @@ function Common:construct(typeName, ...)
         ty.__index = ty
         ent = setmetatable({}, ty)
     end
+
     ent.__typeId = ty.__typeId
+    ent.__id = id
     ent.__mgr = self
     ent.__local = {}
+
+    self.all[id] = ent
 
     if ent.didConstruct then
         ent:didConstruct(...)
@@ -175,10 +178,11 @@ function Common:destruct(ent)
     if ent.__destructed then
         return
     end
-
     if ent.willDestruct then
         ent:willDestruct()
     end
+
+    self.all[ent.__id] = nil
 
     ent.__destructed = true
     ent.__mgr = nil
@@ -186,34 +190,24 @@ end
 
 function Server:spawn(typeName, ...)
     local id = genId()
-    local ent = self:construct(typeName, ...)
-    ent.__id = id
-
-    self.all[id] = ent
-
+    local ent = self:construct(id, typeName, ...)
     if ent.didSpawn then
         ent:didSpawn(...)
     end
     self:sync(ent)
-
     return id, ent
 end
 
 function Server:despawn(entOrId)
     local ent = type(entOrId) == 'table' and entOrId or self:byId(entOrId)
-
     if ent.__despawned then
         return
     end
-
     if ent.willDespawn then
         ent:willDespawn()
     end
-
     ent.__despawned = true
-    self.all[ent.__id] = nil
     self:sync(ent)
-
     self:destruct(ent)
 end
 
@@ -306,7 +300,6 @@ function Common:applyReceivedSyncs()
 
     -- Destruct leavers
     for id, ent in pairs(leavers) do
-        self.all[id] = nil
         self:destruct(ent)
     end
 
@@ -315,9 +308,7 @@ function Common:applyReceivedSyncs()
     for id, sync in pairs(appliable) do
         local ent = self.all[id]
         if not ent then -- Entered -- construct and remember to notify later
-            ent = self:construct(typeIdToName[sync.__typeId])
-            ent.__id = id
-            self.all[id] = ent
+            ent = self:construct(id, typeIdToName[sync.__typeId])
             enterers[ent] = true
         end
         local defaultSyncBehavior = true
