@@ -52,6 +52,8 @@ end
 
 local Stuff = sync.registerType('Stuff')
 
+local stuffs = {}
+
 function Stuff:didSpawn(x, y)
     self.x, self.y = x, y
     self.angle = 2 * math.pi * math.random()
@@ -59,12 +61,19 @@ function Stuff:didSpawn(x, y)
     self.width, self.height = 1 + 10 * math.random(), 1 + 10 * math.random()
     self.radius = 0.5 * math.sqrt(self.width * self.width + self.height * self.height)
     self.r, self.g, self.b = 0.1 + 0.7 * math.random(), 0.2 * math.random(), 0.2 + 0.5 * math.random()
+    stuffs[self.__id] = self
 end
 
-function Stuff:isRelevant(controller)
-    local player = self.__mgr:byId(controller.playerId)
-    local dx, dy = math.abs(self.x - player.x), math.abs(self.y - player.y)
-    return math.max(dx, dy) - self.radius < 0.5 * DISPLAY_SIZE
+function Stuff.getRelevants(controller)
+    local ids = {}
+    for id, stuff in pairs(stuffs) do
+        local player = stuff.__mgr:byId(controller.playerId)
+        local dx, dy = math.abs(stuff.x - player.x), math.abs(stuff.y - player.y)
+        if math.max(dx, dy) - stuff.radius < 0.5 * DISPLAY_SIZE then
+            ids[id] = true
+        end
+    end
+    return ids
 end
 
 function Stuff:update(dt)

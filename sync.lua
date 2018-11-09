@@ -91,8 +91,8 @@ function Server:init(props)
 
     self.controllers = {} -- `peer` -> controller
 
-    self.outgoingSyncsPerType = {} -- `ent.__typeName` -> `ent.__id` -> (`ent` or `SYNC_LEAVE`)
-    self.peerHas = {} -- `peer` -> `ent.__id` -> `true` for all sync'd on `peer`
+    self.syncsPerType = {} -- `ent.__typeName` -> `ent.__id` -> (`ent` or `SYNC_LEAVE`)
+    self.peerHasPerType = {} -- `peer` -> `ent.__typeName` -> `ent.__id` -> `true` for all on `peer`
 end
 
 function Client:init(props)
@@ -225,10 +225,10 @@ function Server:sync(entOrId)
     local ent = type(entOrId) == 'table' and entOrId or self:byId(entOrId)
     local typeName = ent.__typeName
     local val = ent.__despawned and SYNC_LEAVE or ent
-    local syncs = self.outgoingSyncsPerType[typeName]
+    local syncs = self.syncsPerType[typeName]
     if not syncs then
         syncs = {}
-        self.outgoingSyncsPerType[typeName] = syncs
+        self.syncsPerType[typeName] = syncs
     end
     syncs[ent.__id] = val
 end
@@ -268,15 +268,27 @@ function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to a
         local dumps = {}
         for typeName, syncs in pairs(syncsPerType) do
             local ty = typeNameToType[typeName]
-            if not ty.getRelevants then
+            if ty.getRelevants then
+                local relevants = ty.getRelevants(controller)
+                for id in pairs(self.peerHasPerType[peer][typeName]) do
+                    if not relevants[id] then
+                        dumps[id] = SYNC_LEAVE
+                    end
+                end
+                self.peerHasPerType[peer][typeName] = {}
+                for id in pairs(relevants) do
+                    dumps[id] = getDump(id)
+                    self.peerHasPerType[peer][typeName][id] = true
+                end
+            else
                 for id, sync in pairs(syncs) do
                     if sync ~= SYNC_LEAVE and sync.isRelevant and not sync:isRelevant(controller) then
                         sync = SYNC_LEAVE
                     end
-                    if not (sync == SYNC_LEAVE and not self.peerHas[peer][id]) then
+                    if not (sync == SYNC_LEAVE and not self.peerHasPerType[peer][typeName][id]) then
                         dumps[id] = sync == SYNC_LEAVE and SYNC_LEAVE or getDump(id)
                     end
-                    self.peerHas[peer][id] = sync ~= SYNC_LEAVE and true or nil
+                    self.peerHasPerType[peer][typeName][id] = sync ~= SYNC_LEAVE and true or nil
                 end
             end
         end
@@ -390,7 +402,10 @@ function Server:didConnect(peer)
     assert(not self.controllers[peer], "controller for `peer` already exists")
     local controllerId, controller = self:spawn(self.controllerTypeName)
     self.controllers[peer] = controller
-    self.peerHas[peer] = {}
+    self.peerHasPerType[peer] = {}
+    for typeName in pairs(typeNameToType) do
+        self.peerHasPerType[peer][typeName] = {}
+    end
     self:sendSyncs(peer, self.allPerType)
     peer:send(rpcToData('receiveControllerId', controllerId))
 end
@@ -401,7 +416,7 @@ end
 function Server:didDisconnect(peer)
     local controller = assert(self.controllers[peer], "no controller for this `peer`")
     self.controllers[peer] = nil
-    self.peerHas[peer] = nil
+    self.peerHasPerType[peer] = nil
     self:despawn(controller)
 end
 
@@ -441,8 +456,8 @@ function Common:process()
 end
 
 function Server:processSyncs()
-    self:sendSyncs(nil, self.outgoingSyncsPerType)
-    self.outgoingSyncsPerType = {}
+    self:sendSyncs(nil, self.syncsPerType)
+    self.syncsPerType = {}
 end
 
 function Client:processSyncs()
