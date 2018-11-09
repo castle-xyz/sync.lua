@@ -8,11 +8,12 @@ local shash = require 'https://raw.githubusercontent.com/rxi/shash/7e2bbef0193e9
 
 local SERVER_ADDRESS = '207.254.45.246'
 
-local WORLD_MULT = 3
+local WORLD_MULT = 2
 local WORLD_SIZE = WORLD_MULT * 500
 local WORLD_NUM_STUFFS = WORLD_MULT * WORLD_MULT * 5000
 local WORLD_SCALE = 1 -- Update later based on window size
 local DISPLAY_SIZE = 20 -- How many world units wide should we able to see?
+local MINIMAP_SIZE = 64
 
 
 -- Utilities
@@ -217,13 +218,14 @@ function love.draw()
     if client and client.controller then
         local numDrawables = 0
 
+        local player = client:byId(client.controller.playerId)
+
         love.graphics.stacked('all', function()
             local ww, wh = love.graphics.getDimensions()
             love.graphics.translate(ww / 2, wh / 2)
 
             love.graphics.scale(WORLD_SCALE)
 
-            local player = client:byId(client.controller.playerId)
             love.graphics.translate(-player.x, -player.y)
 
             local order = {}
@@ -236,6 +238,25 @@ function love.draw()
             table.sort(order, function(e1, e2) return e1.__id < e2.__id end)
             for _, ent in ipairs(order) do
                 ent:draw()
+            end
+        end)
+
+        love.graphics.stacked('all', function()
+            local mx, my = love.graphics.getWidth() - MINIMAP_SIZE - 20, 20
+            love.graphics.setColor(1, 1, 1, 0.4)
+            love.graphics.rectangle('fill', mx, my, MINIMAP_SIZE, MINIMAP_SIZE)
+            love.graphics.setColor(0.2, 0.2, 0.2, 1)
+            love.graphics.setLineWidth(3)
+            love.graphics.rectangle('line', mx, my, MINIMAP_SIZE, MINIMAP_SIZE)
+            for id, ent in pairs(client.allPerType.Player) do
+                local px = mx + 0.5 * MINIMAP_SIZE + 0.5 * MINIMAP_SIZE * ent.x / WORLD_SIZE
+                local py = my + 0.5 * MINIMAP_SIZE + 0.5 * MINIMAP_SIZE * ent.y / WORLD_SIZE
+                if id == player.__id then
+                    love.graphics.setColor(0, 1, 0, 1)
+                else
+                    love.graphics.setColor(1, 0, 0, 1)
+                end
+                love.graphics.ellipse('fill', px, py, 2, 2)
             end
         end)
 
