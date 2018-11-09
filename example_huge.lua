@@ -23,9 +23,20 @@ end
 
 
 
--- Server / client instances and top-level input
+-- Server / client instances and top-level Love callbacks
 
 local server, client
+
+
+function love.update()
+    if server then
+        server:process()
+    end
+    if client then
+        client:process()
+    end
+end
+
 
 function love.keypressed(key)
     if key == '0' then
@@ -40,25 +51,6 @@ function love.keypressed(key)
 end
 
 
-
--- Top-level update
-
-function love.update()
-    if server then
-        server:process()
-    end
-    if client then
-        client:process()
-    end
-end
-
-
-
--- Top-level draw
-
 function love.draw()
     love.graphics.print('hello, world', 20, 20)
 end
-
-
-
