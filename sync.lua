@@ -273,12 +273,14 @@ function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to a
                 for id in pairs(self.peerHasPerType[peer][typeName]) do
                     if not relevants[id] then
                         dumps[id] = SYNC_LEAVE
+                        self.peerHasPerType[peer][typeName][id] = nil
                     end
                 end
-                self.peerHasPerType[peer][typeName] = {}
                 for id in pairs(relevants) do
-                    dumps[id] = getDump(id)
-                    self.peerHasPerType[peer][typeName][id] = true
+                    if syncs[id] then
+                        dumps[id] = getDump(id)
+                        self.peerHasPerType[peer][typeName][id] = true
+                    end
                 end
             else
                 for id, sync in pairs(syncs) do
