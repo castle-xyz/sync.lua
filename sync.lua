@@ -268,30 +268,31 @@ function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to a
     for peer, controller in pairs(controllers) do
         local dumps = {}
         for typeName, syncs in pairs(syncsPerType) do
+            local has = self.peerHasPerType[peer][typeName]
             local ty = typeNameToType[typeName]
-            if ty.getRelevants then
+            if ty.getRelevants then -- Has a `.getRelevants` query, use that
                 local relevants = ty.getRelevants(controller)
-                for id in pairs(self.peerHasPerType[peer][typeName]) do
+                for id in pairs(has) do
                     if not relevants[id] then
                         dumps[id] = SYNC_LEAVE
-                        self.peerHasPerType[peer][typeName][id] = nil
+                        has[id] = nil
                     end
                 end
                 for id in pairs(relevants) do
                     if syncs[id] then
                         dumps[id] = getDump(id)
-                        self.peerHasPerType[peer][typeName][id] = true
+                        has[id] = true
                     end
                 end
-            else
+            else -- No `.getRelevants`, iterate through all in `syncs`
                 for id, sync in pairs(syncs) do
                     if sync ~= SYNC_LEAVE and sync.isRelevant and not sync:isRelevant(controller) then
                         sync = SYNC_LEAVE
                     end
-                    if not (sync == SYNC_LEAVE and not self.peerHasPerType[peer][typeName][id]) then
+                    if not (sync == SYNC_LEAVE and not has[id]) then
                         dumps[id] = sync == SYNC_LEAVE and SYNC_LEAVE or getDump(id)
                     end
-                    self.peerHasPerType[peer][typeName][id] = sync ~= SYNC_LEAVE and true or nil
+                    has[id] = sync ~= SYNC_LEAVE and true or nil
                 end
             end
         end
