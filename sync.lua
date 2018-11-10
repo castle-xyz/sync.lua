@@ -145,11 +145,12 @@ end
 -- Querying
 
 function Common:byId(id)
-    if id == nil then
-        error('attempted to look up a `nil` id')
-    end
-    local ent = assert(self.all[id], 'no entity with id ' .. id)
-    return ent
+    if id == nil then return nil end
+    return self.all[id]
+end
+
+function Common:byType(typeName)
+    return self.allPerType[typeName]
 end
 
 
