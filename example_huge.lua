@@ -68,6 +68,13 @@ function Stuff:didSpawn(x, y)
     Stuff.shash:add(self, self.x - 0.5 * dia, self.y - 0.5 * dia, dia, dia)
 end
 
+function Stuff:willSync(sync)
+    if self.angle then
+        self.angle = sync.angle + self.rotSpeed * (self.__mgr.time - sync.__timestamp)
+        return false
+    end
+end
+
 function Stuff:didDespawn()
     Stuff.shash:remove(self)
 end
@@ -110,6 +117,16 @@ function Player:didSpawn()
     self.x, self.y = 0, 0
     self.vx, self.vy = 0, 0
     self.ax, self.ay = 0, 0
+end
+
+function Player:willSync(sync)
+    if self.x then
+        local dt = self.__mgr.time - sync.__timestamp
+        self.ax, self.ay = sync.ax, sync.ay
+        self.vx, self.vy = sync.vx + self.ax * dt, sync.vy + self.ay * dt
+        self.x, self.y = sync.x + self.vx * dt, sync.y + self.vy * dt
+        return false
+    end
 end
 
 function Player:update(dt)
@@ -165,6 +182,12 @@ function love.update(dt)
     end
     if client then
         client:process()
+
+        for _, ent in pairs(client.all) do
+            if ent.update then
+                ent:update(dt)
+            end
+        end
     end
 end
 
@@ -264,11 +287,13 @@ function love.draw()
             love.graphics.print('total: ' .. World.instance.numStuffs, 20, 20)
             love.graphics.print('\nrelevant: ' .. numDrawables, 20, 20)
             love.graphics.print('\n\nping: ' .. client.serverPeer:round_trip_time(), 20, 20)
+            love.graphics.print('\n\n\nclock delta: ' ..
+                    0.001 * math.floor(1000 * client.lastClockSyncDelta), 20, 20)
             local now = love.timer.getTime()
             if not startTime then
                 startTime = now - 0.01
             end
-            love.graphics.print("\n\n\nkbps dl'd: " ..
+            love.graphics.print("\n\n\n\nkbps dl'd: " ..
                     math.floor(0.001 * client.host:total_received_data() / (now - startTime)), 20, 20)
         end
     else
