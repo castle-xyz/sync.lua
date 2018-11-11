@@ -10,6 +10,7 @@ local pairs, next, type = pairs, next, type
 
 local BANDWIDTH_LIMIT = 0 -- Bandwidth limit in bytes per second -- 0 for unlimited
 local CLOCK_SYNC_PERIOD = 1 -- Seconds between clock sync attempts
+local CHANNEL_COUNT = 255
 
 local SYNC_LEAVE = 1 -- Sentinel to sync entity leaving -- single byte when bitser'd
 
@@ -84,7 +85,7 @@ function Server:init(props)
     self.controllerTypeName = assert(props.controllerTypeName,
         "server needs `props.controllerTypeName`")
 
-    self.host = enet.host_create(props.address or '*:22122')
+    self.host = enet.host_create(props.address or '*:22122', 64, CHANNEL_COUNT)
     if not self.host then
         error("couldn't create server, port may already be in use")
     end
@@ -94,6 +95,8 @@ function Server:init(props)
 
     self.syncsPerType = {} -- `ent.__typeName` -> `ent.__id` -> (`ent` or `SYNC_LEAVE`)
     self.peerHasPerType = {} -- `peer` -> `ent.__typeName` -> `ent.__id` -> `true` for all on `peer`
+
+    self.channel = 0
 end
 
 function Client:init(props)
@@ -110,6 +113,7 @@ function Client:init(props)
     self.controller = nil
 
     self.incomingSyncDumps = {} -- `ent.__id` -> `bitser.dumps(sync)` or `SYNC_LEAVE`
+    self.lastReceivedTimestamp = {}
 
     self.lastClockSyncTime = nil
     self.lastClockSyncDelta = nil
@@ -303,15 +307,20 @@ function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to a
             end
         end
         if next(dumps) then -- Non-empty?
-            peer:send(rpcToData('receiveSyncDumps', dumps, timestamp))
+            peer:send(rpcToData('receiveSyncDumps', dumps, timestamp, self.channel))
         end
     end
+    self.channel = (self.channel + 1) % CHANNEL_COUNT
 end
 
 defRpc('receiveSyncDumps')
 function Client:receiveSyncDumps(peer, dumps, timestamp)
     for id, dump in pairs(dumps) do
-        self.incomingSyncDumps[id] = { dump = dump, timestamp = timestamp }
+        local lastReceivedTimestamp = self.lastReceivedTimestamp[id]
+        if not lastReceivedTimestamp or timestamp > lastReceivedTimestamp then
+            self.incomingSyncDumps[id] = { dump = dump, timestamp = timestamp }
+            self.lastReceivedTimestamp[id] = timestamp
+        end
     end
 end
 
