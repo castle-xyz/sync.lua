@@ -112,7 +112,7 @@ function Client:init(props)
     self.incomingSyncDumps = {} -- `ent.__id` -> `bitser.dumps(sync)` or `SYNC_LEAVE`
 
     self.lastClockSyncTime = nil
-    self.lastClockSyncDelta = 0
+    self.lastClockSyncDelta = nil
 end
 
 function Client:disconnect()
@@ -420,6 +420,7 @@ function Server:didConnect(peer)
     for typeName in pairs(typeNameToType) do
         self.peerHasPerType[peer][typeName] = {}
     end
+    peer:send(rpcToData('receiveClockSync', nil, love.timer.getTime()))
     self:sendSyncs(peer, self.allPerType)
     peer:send(rpcToData('receiveControllerId', controllerId))
 end
@@ -441,15 +442,15 @@ end
 
 -- Clock sync
 
-defRpc('receiveClockSyncStart')
-function Server:receiveClockSyncStart(peer, startTime)
-    peer:send(rpcToData('receiveClockSyncEnd', startTime, love.timer.getTime()))
+defRpc('receiveClockSyncRequest')
+function Server:receiveClockSyncRequest(peer, requestTime)
+    peer:send(rpcToData('receiveClockSync', requestTime, love.timer.getTime()))
 end
 
-defRpc('receiveClockSyncEnd')
-function Client:receiveClockSyncEnd(peer, startTime, serverTime)
+defRpc('receiveClockSync')
+function Client:receiveClockSync(peer, requestTime, serverTime)
     local now = love.timer.getTime()
-    local delta = serverTime + 0.5 * (now - startTime) - now
+    local delta = serverTime + (requestTime and 0.5 * (now - requestTime) or 0) - now
     if self.lastClockSyncDelta then
         self.lastClockSyncDelta = delta
     else
@@ -502,7 +503,7 @@ function Client:processSyncs()
     if self.serverPeer:state() == 'connected' then
         local now = love.timer.getTime()
         if not self.lastClockSyncTime or now - self.lastClockSyncTime >= CLOCK_SYNC_PERIOD then
-            self.serverPeer:send(rpcToData('receiveClockSyncStart', now))
+            self.serverPeer:send(rpcToData('receiveClockSyncRequest', now))
             self.lastClockSyncTime = now
         end
     end
