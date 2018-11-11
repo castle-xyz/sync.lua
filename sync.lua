@@ -452,7 +452,7 @@ defRpc('receiveClockSync')
 function Client:receiveClockSync(peer, requestTime, serverTime)
     local now = love.timer.getTime()
     local delta = serverTime + (requestTime and 0.5 * (now - requestTime) or 0) - now
-    if self.lastClockSyncDelta then
+    if not self.lastClockSyncDelta then
         self.lastClockSyncDelta = delta
     else
         self.lastClockSyncDelta = self.lastClockSyncDelta + (delta - self.lastClockSyncDelta) / 8
