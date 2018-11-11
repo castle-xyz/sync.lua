@@ -9,6 +9,7 @@ local pairs, next, type = pairs, next, type
 
 
 local BANDWIDTH_LIMIT = 0 -- Bandwidth limit in bytes per second -- 0 for unlimited
+local CLOCK_SYNC_PERIOD = 1 -- Seconds between clock sync attempts
 
 local SYNC_LEAVE = 1 -- Sentinel to sync entity leaving -- single byte when bitser'd
 
@@ -109,6 +110,9 @@ function Client:init(props)
     self.controller = nil
 
     self.incomingSyncDumps = {} -- `ent.__id` -> `bitser.dumps(sync)` or `SYNC_LEAVE`
+
+    self.lastClockSyncTime = nil
+    self.lastClockSyncDelta = 0
 end
 
 function Client:disconnect()
@@ -263,7 +267,8 @@ function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to a
         return dump
     end
 
-    -- Collect dumps per peer we're sending to and send them
+    -- Collect dumps per peer we're sending to and send them along with a timestamp
+    local timestamp = love.timer.getTime()
     local controllers = peer and { [peer] = self.controllers[peer] } or self.controllers
     for peer, controller in pairs(controllers) do
         local dumps = {}
@@ -297,15 +302,15 @@ function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to a
             end
         end
         if next(dumps) then -- Non-empty?
-            peer:send(rpcToData('receiveSyncDumps', dumps))
+            peer:send(rpcToData('receiveSyncDumps', dumps, timestamp))
         end
     end
 end
 
 defRpc('receiveSyncDumps')
-function Client:receiveSyncDumps(peer, dumps)
+function Client:receiveSyncDumps(peer, dumps, timestamp)
     for id, dump in pairs(dumps) do
-        self.incomingSyncDumps[id] = dump
+        self.incomingSyncDumps[id] = { dump = dump, timestamp = timestamp }
     end
 end
 
@@ -313,8 +318,11 @@ function Common:applyReceivedSyncs()
     -- Deserialize syncs and notify leavers
     local leavers = {} -- `ent.__id` -> `ent` for entities that left
     local appliable = {} -- `id` -> `sync` for non-leaving syncs
-    for id, dump in pairs(self.incomingSyncDumps) do
-        local sync = type(dump) == 'string' and bitser.loads(dump) or dump
+    for id, row in pairs(self.incomingSyncDumps) do
+        local sync = type(row.dump) == 'string' and bitser.loads(row.dump) or row.dump
+        if type(sync) == 'table' then
+            sync.__timestamp = row.timestamp
+        end
         if sync == SYNC_LEAVE then
             local ent = self.all[id]
             if ent then
@@ -354,7 +362,9 @@ function Common:applyReceivedSyncs()
                 end
             end
             for k, v in pairs(sync) do
-                ent[k] = v
+                if k ~= '__timestamp' then
+                    ent[k] = v
+                end
             end
             ent.__local = savedLocal
         end
@@ -429,6 +439,25 @@ function Client:didDisconnect()
 end
 
 
+-- Clock sync
+
+defRpc('receiveClockSyncStart')
+function Server:receiveClockSyncStart(peer, startTime)
+    peer:send(rpcToData('receiveClockSyncEnd', startTime, love.timer.getTime()))
+end
+
+defRpc('receiveClockSyncEnd')
+function Client:receiveClockSyncEnd(peer, startTime, serverTime)
+    local now = love.timer.getTime()
+    local delta = serverTime + 0.5 * (now - startTime) - now
+    if self.lastClockSyncDelta then
+        self.lastClockSyncDelta = delta
+    else
+        self.lastClockSyncDelta = self.lastClockSyncDelta + (delta - self.lastClockSyncDelta) / 8
+    end
+end
+
+
 -- Top-level process
 
 function Common:process()
@@ -465,7 +494,18 @@ function Server:processSyncs()
 end
 
 function Client:processSyncs()
+    self.time = love.timer.getTime() + self.lastClockSyncDelta
+
     self:applyReceivedSyncs()
+
+    -- Initiate a clock sync every `CLOCK_SYNC_PERIOD` seconds
+    if self.serverPeer:state() == 'connected' then
+        local now = love.timer.getTime()
+        if not self.lastClockSyncTime or now - self.lastClockSyncTime >= CLOCK_SYNC_PERIOD then
+            self.serverPeer:send(rpcToData('receiveClockSyncStart', now))
+            self.lastClockSyncTime = now
+        end
+    end
 end
 
 
