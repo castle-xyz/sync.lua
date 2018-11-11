@@ -113,6 +113,7 @@ function Client:init(props)
 
     self.lastClockSyncTime = nil
     self.lastClockSyncDelta = nil
+    self.time = nil
 end
 
 function Client:disconnect()
@@ -495,7 +496,9 @@ function Server:processSyncs()
 end
 
 function Client:processSyncs()
-    self.time = love.timer.getTime() + self.lastClockSyncDelta
+    if self.lastClockSyncDelta then
+        self.time = love.timer.getTime() + self.lastClockSyncDelta
+    end
 
     self:applyReceivedSyncs()
 
