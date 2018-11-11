@@ -167,12 +167,18 @@ end
 local server, client
 
 
+local frameNum = 1
+
 function love.update(dt)
+    frameNum = frameNum + 1
+
     local ww, wh = love.graphics.getDimensions()
     WORLD_SCALE = math.max(ww, wh) / DISPLAY_SIZE
 
     if server then
-        server:process()
+        if frameNum % 2 == 0 then
+            server:process()
+        end
 
         for _, ent in pairs(server.all) do
             if ent.update then
@@ -181,7 +187,9 @@ function love.update(dt)
         end
     end
     if client then
-        client:process()
+        if frameNum % 2 == 0 then
+            client:process()
+        end
 
         for _, ent in pairs(client.all) do
             if ent.update then
