@@ -68,9 +68,9 @@ function Stuff:didSpawn(x, y)
     Stuff.shash:add(self, self.x - 0.5 * dia, self.y - 0.5 * dia, dia, dia)
 end
 
-function Stuff:willSync(sync)
-    if self.angle then
-        self.angle = sync.angle + self.rotSpeed * (self.__mgr.time - sync.__timestamp)
+function Stuff:willSync(sync, dt)
+    if self.rotSpeed then
+        self.angle = sync.angle + self.rotSpeed * dt
         return false
     end
 end
@@ -119,9 +119,8 @@ function Player:didSpawn()
     self.ax, self.ay = 0, 0
 end
 
-function Player:willSync(sync)
-    if self.x then
-        local dt = self.__mgr.time - sync.__timestamp
+function Player:willSync(sync, dt)
+    if self.ax then
         self.ax, self.ay = sync.ax, sync.ay
         self.vx, self.vy = sync.vx + self.ax * dt, sync.vy + self.ay * dt
         self.x, self.y = sync.x + self.vx * dt, sync.y + self.vy * dt

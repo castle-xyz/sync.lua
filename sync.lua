@@ -325,6 +325,10 @@ function Client:receiveSyncDumps(peer, dumps, timestamp)
 end
 
 function Common:applyReceivedSyncs()
+    if not next(self.incomingSyncDumps) then -- Nothing to apply?
+        return
+    end
+
     -- Deserialize syncs and notify leavers
     local leavers = {} -- `ent.__id` -> `ent` for entities that left
     local appliable = {} -- `id` -> `sync` for non-leaving syncs
@@ -362,7 +366,7 @@ function Common:applyReceivedSyncs()
         end
         local defaultSyncBehavior = true
         if ent.willSync then -- Notify `:willSync` and check if it asks us to skip default syncing
-            defaultSyncBehavior = ent:willSync(sync)
+            defaultSyncBehavior = ent:willSync(sync, self.time - sync.__timestamp)
         end
         if defaultSyncBehavior ~= false then -- Just copy members by default
             local savedLocal = ent.__local
@@ -466,6 +470,7 @@ function Client:receiveClockSync(peer, requestTime, serverTime)
     else
         self.lastClockSyncDelta = self.lastClockSyncDelta + (delta - self.lastClockSyncDelta) / 8
     end
+    self.time = love.timer.getTime() + self.lastClockSyncDelta
 end
 
 
