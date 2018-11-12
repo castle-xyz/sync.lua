@@ -122,8 +122,8 @@ end
 function Player:willSync(sync, dt)
     if self.ax then
         self.ax, self.ay = sync.ax, sync.ay
-        self.vx, self.vy = sync.vx + self.ax * dt, sync.vy + self.ay * dt
-        self.x, self.y = sync.x + self.vx * dt, sync.y + self.vy * dt
+        self.vx, self.vy = sync.vx + sync.ax * dt, sync.vy + sync.ay * dt
+        self.x, self.y = sync.x + sync.vx * dt + 0.5 * sync.ax * dt * dt, sync.y + sync.vy * dt + 0.5 * sync.ay * dt * dt
         return false
     end
 end
