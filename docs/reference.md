@@ -104,7 +104,7 @@ Returns a table of all the entities of the named type, where the keys are the id
 
 #### `Server:spawn(typeName, ...)`
 
-Create an entity of the given type. Automatically synchronizes the entity to all connected clients for which the entity is relevant.
+Create an entity of the given type. Automatically synchronizes the entity to all connected clients for which the entity is relevant (the actual synchronization is sent on the next `:process` call).
 
 ##### Arguments
 
@@ -118,7 +118,7 @@ Create an entity of the given type. Automatically synchronizes the entity to all
 
 #### `Server:despawn(entOrId)`
 
-Destroy an entity. Automatically removes the entity from all connected clients for which the entity is relevant.
+Destroy an entity. Automatically removes the entity from all connected clients for which the entity is relevant (the actual synchronization is sent on the next `:process` call).
 
 ##### Arguments
 
@@ -132,9 +132,11 @@ Nothing.
 
 #### `Common:sync(entOrId)`
 
-Mark an entity as needing synchronization. On server instances, on the next call to `:process`, the state of the entity is sent to all clients for which the entity is relevant. On client instances this does nothing. The method is still provided on client instances so that you can call `:sync` on clients without causing an error.
+Mark an entity as needing synchronization.
 
-This needs to be called on an entity when any of its members change that clients need to be aware of, or if the value of `:isRelevant` may have changed for any controller.
+On server instances the state of the entity is sent to all clients for which the entity is relevant (the actual synchronization is sent on the next `:process` call). On client instances this doesn't send any synchronizations, but the method is still provided so that you can call `:sync` in shared code without causing an error.
+
+Typically this needs to be called on an entity when any of its members change that clients need to be aware of, or if its return value for `:isRelevant` may have changed for any controller.
 
 ##### Arguments
 
