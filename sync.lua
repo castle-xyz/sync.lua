@@ -54,22 +54,22 @@ Client.__index = Client
 local Server = setmetatable({}, Common)
 Server.__index = Server
 
-function sync.newServer(props)
+function sync.newServer(options)
     local mgr = setmetatable({}, Server)
-    mgr:init(props)
+    mgr:init(options)
     return mgr
 end
 
-function sync.newClient(props)
+function sync.newClient(options)
     local mgr = setmetatable({}, Client)
-    mgr:init(props)
+    mgr:init(options)
     return mgr
 end
 
 
 -- Initialization, disconnection
 
-function Common:init(props)
+function Common:init(options)
     self.all = {} -- `ent.__id` -> `ent` for all on server / all sync'd on client
     self.allPerType = {} -- `ent.__typeName` -> `ent.__id` -> `ent` for all in `self.all`
     for typeName in pairs(typeNameToType) do
@@ -77,15 +77,15 @@ function Common:init(props)
     end
 end
 
-function Server:init(props)
+function Server:init(options)
     Common.init(self)
 
     self.isServer, self.isClient = true, false
 
-    self.controllerTypeName = assert(props.controllerTypeName,
-        "server needs `props.controllerTypeName`")
+    self.controllerTypeName = assert(options.controllerTypeName,
+        "server needs `options.controllerTypeName`")
 
-    self.host = enet.host_create(props.address or '*:22122', 64, CHANNEL_COUNT)
+    self.host = enet.host_create(options.address or '*:22122', 64, CHANNEL_COUNT)
     if not self.host then
         error("couldn't create server, port may already be in use")
     end
@@ -99,17 +99,17 @@ function Server:init(props)
     self.channel = 0
 end
 
-function Client:init(props)
+function Client:init(options)
     Common.init(self)
 
-    assert(props.address, "client needs `props.address` to connect to")
+    assert(options.address, "client needs `options.address` to connect to")
 
     self.isServer, self.isClient = false, true
 
     self.host = enet.host_create()
     self.host:bandwidth_limit(BANDWIDTH_LIMIT, BANDWIDTH_LIMIT)
 
-    self.serverPeer = self.host:connect(props.address)
+    self.serverPeer = self.host:connect(options.address)
     self.controller = nil
 
     self.incomingSyncDumps = {} -- `ent.__id` -> `bitser.dumps(sync)` or `SYNC_LEAVE`
