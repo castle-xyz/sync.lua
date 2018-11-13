@@ -141,7 +141,6 @@ function Client:init(options)
 
     self.lastClockSyncTime = nil
     self.lastClockSyncDelta = nil
-    self.time = nil
 end
 
 function Client:disconnect()
@@ -376,6 +375,7 @@ function Common:applyReceivedSyncs()
     end
 
     -- Apply syncs then notify
+    local time = self:serverTime()
     local synced, enterers = getFromPool(), getFromPool()
     for id, sync in pairs(appliable) do
         local ent = self.all[id]
@@ -385,7 +385,7 @@ function Common:applyReceivedSyncs()
         end
         local defaultSyncBehavior = true
         if ent.willSync then -- Notify `:willSync` and check if it asks us to skip default syncing
-            defaultSyncBehavior = ent:willSync(sync, self.time - sync.__timestamp)
+            defaultSyncBehavior = ent:willSync(sync, time - sync.__timestamp)
         end
         if defaultSyncBehavior ~= false then -- Just copy members by default
             local savedLocal = ent.__local
@@ -491,7 +491,10 @@ function Client:receiveClockSync(peer, requestTime, serverTime)
     else
         self.lastClockSyncDelta = self.lastClockSyncDelta + (delta - self.lastClockSyncDelta) / 8
     end
-    self.time = love.timer.getTime() + self.lastClockSyncDelta
+end
+
+function Client:serverTime()
+    return love.timer.getTime() + self.lastClockSyncDelta
 end
 
 
@@ -533,10 +536,6 @@ function Server:processSyncs()
 end
 
 function Client:processSyncs()
-    if self.lastClockSyncDelta then
-        self.time = love.timer.getTime() + self.lastClockSyncDelta
-    end
-
     self:applyReceivedSyncs()
 
     -- Initiate a clock sync every `CLOCK_SYNC_PERIOD` seconds
