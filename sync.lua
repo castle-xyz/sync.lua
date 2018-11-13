@@ -15,6 +15,27 @@ local CHANNEL_COUNT = 255
 local SYNC_LEAVE = 1 -- Sentinel to sync entity leaving -- single byte when bitser'd
 
 
+-- Utilities to reduce GC trashing
+
+local function clearTable(t)
+    for k in pairs(t) do t[k] = nil end
+end
+
+local pool = {}
+
+local function getFromPool()
+    return table.remove(pool) or {}
+end
+
+local function releaseToPool(t, ...)
+    if t then
+        clearTable(t)
+        table.insert(pool, t)
+        releaseToPool(...)
+    end
+end
+
+
 -- Ids
 
 local idCounter = 0
@@ -252,7 +273,7 @@ function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to a
     end
 
     -- Memoized function to dump so we only serialize each required entity once
-    local allDumps = {}
+    local allDumps = getFromPool()
     local function getDump(id)
         local dump = allDumps[id]
         if dump == nil then
@@ -276,7 +297,7 @@ function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to a
     local timestamp = love.timer.getTime()
     local controllers = peer and { [peer] = self.controllers[peer] } or self.controllers
     for peer, controller in pairs(controllers) do
-        local dumps = {}
+        local dumps = getFromPool()
         for typeName, syncs in pairs(syncsPerType) do
             local has = self.peerHasPerType[peer][typeName]
             local ty = typeNameToType[typeName]
@@ -309,8 +330,11 @@ function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to a
         if next(dumps) then -- Non-empty?
             peer:send(rpcToData('receiveSyncDumps', dumps, timestamp, self.channel))
         end
+        releaseToPool(dumps)
     end
     self.channel = (self.channel + 1) % CHANNEL_COUNT
+
+    releaseToPool(allDumps)
 end
 
 defRpc('receiveSyncDumps')
@@ -330,8 +354,8 @@ function Common:applyReceivedSyncs()
     end
 
     -- Deserialize syncs and notify leavers
-    local leavers = {} -- `ent.__id` -> `ent` for entities that left
-    local appliable = {} -- `id` -> `sync` for non-leaving syncs
+    local leavers = getFromPool() -- `ent.__id` -> `ent` for entities that left
+    local appliable = getFromPool() -- `id` -> `sync` for non-leaving syncs
     for id, row in pairs(self.incomingSyncDumps) do
         local sync = type(row.dump) == 'string' and bitser.loads(row.dump) or row.dump
         if type(sync) == 'table' then
@@ -349,7 +373,7 @@ function Common:applyReceivedSyncs()
             appliable[id] = sync
         end
     end
-    self.incomingSyncDumps = {}
+    clearTable(self.incomingSyncDumps)
 
     -- Destruct leavers
     for id, ent in pairs(leavers) do
@@ -357,7 +381,7 @@ function Common:applyReceivedSyncs()
     end
 
     -- Apply syncs then notify
-    local synced, enterers = {}, {}
+    local synced, enterers = getFromPool(), getFromPool()
     for id, sync in pairs(appliable) do
         local ent = self.all[id]
         if not ent then -- Entered -- construct and remember to notify later
@@ -395,6 +419,8 @@ function Common:applyReceivedSyncs()
             ent:didSync()
         end
     end
+
+    releaseToPool(leavers, appliable, synced, enterers)
 end
 
 
@@ -506,7 +532,9 @@ end
 
 function Server:processSyncs()
     self:sendSyncs(nil, self.syncsPerType)
-    self.syncsPerType = {}
+    for _, syncs in pairs(self.syncsPerType) do
+        clearTable(syncs)
+    end
 end
 
 function Client:processSyncs()
