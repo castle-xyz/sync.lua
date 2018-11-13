@@ -115,6 +115,9 @@ function Server:init(options)
     self.controllers = {} -- `peer` -> controller
 
     self.syncsPerType = {} -- `ent.__typeName` -> `ent.__id` -> (`ent` or `SYNC_LEAVE`)
+    for typeName in pairs(typeNameToType) do
+        self.syncsPerType[typeName] = {}
+    end
     self.peerHasPerType = {} -- `peer` -> `ent.__typeName` -> `ent.__id` -> `true` for all on `peer`
 
     self.channel = 0
@@ -254,14 +257,7 @@ end
 
 function Server:sync(entOrId)
     local ent = type(entOrId) == 'table' and entOrId or self:byId(entOrId)
-    local typeName = ent.__typeName
-    local val = ent.__despawned and SYNC_LEAVE or ent
-    local syncs = self.syncsPerType[typeName]
-    if not syncs then
-        syncs = {}
-        self.syncsPerType[typeName] = syncs
-    end
-    syncs[ent.__id] = val
+    self.syncsPerType[ent.__typeName][ent.__id] = ent.__despawned and SYNC_LEAVE or ent
 end
 
 function Client:sync(entOrId)
@@ -310,14 +306,13 @@ function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to a
                     end
                 end
                 for id in pairs(relevants) do
-                    if syncs[id] then
-                        dumps[id] = getDump(id)
-                        has[id] = true
-                    end
+                    dumps[id] = getDump(id)
+                    has[id] = true
                 end
             else -- No `.getRelevants`, iterate through all in `syncs`
                 for id, sync in pairs(syncs) do
-                    if sync ~= SYNC_LEAVE and sync.isRelevant and not sync:isRelevant(controller) then
+                    if sync ~= SYNC_LEAVE and
+                            sync.isRelevant and not sync:isRelevant(controller) then
                         sync = SYNC_LEAVE
                     end
                     if not (sync == SYNC_LEAVE and not has[id]) then
