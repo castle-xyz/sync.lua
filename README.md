@@ -1,3 +1,5 @@
+![playing 'triangle warz' with some friends!](./preview_triangle_warz.gif)
+
 # sync.lua
 
 *sync.lua* aims to make Lua-based multiplayer games easier to write. You can write your game's code mostly as if you are writing a single-computer game and have automatic synchronization of your game state across multiple computers.
