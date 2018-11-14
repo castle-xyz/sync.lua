@@ -75,8 +75,8 @@ Create an entity of the given type. Automatically synchronizes the entity to all
 
 #### Arguments
 
-- **`typeName` (string)**: The name of the type of entity to spawn.
-- **`...`**: Extra parameters to pass to the type's constructor and entity's `:didConstruct` and `:didSpawn` methods.
+- **`typeName` (string, required)**: The name of the type of entity to spawn.
+- **`...`**: Extra parameters to pass to the type's constructor and entity's `:didConstruct` and `:didSpawn` events.
 
 #### Returns
 
@@ -89,7 +89,7 @@ Destroy an entity. Automatically removes the entity from all connected clients f
 
 #### Arguments
 
-- **`entOrId` (entity or id)**: The entity or the id of the entity to despawn.
+- **`entOrId` (entity or id, required)**: The entity or the id of the entity to despawn.
 
 #### Returns
 
@@ -119,7 +119,7 @@ Find entities by type.
 
 #### Arguments
 
-- **`typeName` (string)**: The name of the type to search by.
+- **`typeName` (string, required)**: The name of the type to search by.
 
 #### Returns
 
@@ -137,7 +137,7 @@ Typically this needs to be called on an entity when any of its members change th
 
 #### Arguments
 
-- **`entOrId` (entity or id)**: The entity or the id of the entity to mark as needing synchronization.
+- **`entOrId` (entity or id, required)**: The entity or the id of the entity to mark as needing synchronization.
 
 #### Returns
 
@@ -170,3 +170,69 @@ The controller for a client. This is a local replica synchronized from the serve
 ### `Client:serverTime()`
 
 Get expected value returned by `love.timer.getTime()` as called on the server at this moment. *sync.lua* computes this value by synchronizing the client-server time difference periodically while accounting for network delay.
+
+## Types and entity construction
+
+*sync.lua* lets you register named types with the system, which provide blueprints for how to construct entities and how to call methods on them. *sync.lua* concerns itself with entity construction because it needs to automatically construct entity replicas on clients. You can use any class system for Lua, but the default behavior built into *sync.lua* should also work for most purposes.
+
+Note the **difference between 'spawn' and 'construct'**: *spawning* an entity only happens on the server and only once for that entity id; while *constructing* happens once on the server for the main instance but also happens on clients when they construct local replicas of that entity. 
+
+### `sync.registerType(typeName, ty)`
+
+Register a type with the system, or create and return a new registered type.
+
+#### Arguments
+
+- **`typeName` (string, required)**: The name to register this type under. This is what you will use in `Server:spawn`.
+- **`ty` (table, optional)**: The type itself. Pass this to register an existing table. Defaults to `{}` (a new empty table).
+
+#### Returns
+
+Returns `ty`, the type registered. This is useful so you can do `local Type = sync.register('Type')` to use the default value `{}` for `ty` but still save the value.
+
+### Entity construction
+
+When you call `Server:spawn(typeName, ...)` or when clients need to replicate a new entity from the server, *sync.lua* constructs an entity instance from a type. To do this, it first looks up the table `ty` previously registered under that `typeName` using `sync.registerType(typeName, ty)`. Then, it does one of two things based on whether `ty.construct` is defined:
+
+- **`ty.construct` is not defined (default construction)**: *sync.lua* sets `ty.__index = ty` and uses `setmetatable({}, ty)` as the new entity. In effect, the entity 'inherits' from `ty`. This is how the [basic example defines methods for `Player`](https://github.com/expo/sync.lua/blob/48c2ea1561f3819ba0598b62c43639345caa2590/example_basic.lua#L7-L39), for example.
+- **`ty.construct` is defined (custom construction)**: `ty:construct()` is called and the returned value (which should be a table) is used as the entity. This lets you define custom construction behaviors (eg. to tie *sync.lua* with your own class system or entity-component system).
+
+## Entity events
+
+*sync.lua* calls methods on entities to notify them of events such as their recent spawning, imminent despawning or sync'ing. Below is a listing of the methods *sync.lua* will call on an entity. If a method is not defined, *sync.lua* simply skips calling it.
+
+### `Entity:didSpawn(...)`
+
+**Server-only.** Called right after the entity is spawned. `...` are the extra arguments passed in `Server:Spawn(typeName, ...)`. Typically this is where you initialize synchronized data members of the entity and update other server-side data about the entity (eg. adding it to a table that finds entities by their positions).
+
+### `Entity:willDespawn()`
+
+**Server-only.** Called right before the entity is despawned. `...` are the extra arguments passed in `Server:Spawn(typeName, ...)`.
+
+### `Entity:didEnter()`
+
+**Client-only.** Called when an entity becomes relevant to the client. This could be if it was just spawned and is relevant, or if it was previously irrelevant and just became relevant. Typically this is where you update client-side data about the entity (eg. adding it to a local list of entities to draw in depth order). This is called after all data in this `Client:process` call has been synchronized, so you can safely refer to data from other entities.
+
+### `Entity:willLeave()`
+
+**Client-only.** Called when an entity becomes irrelevant to the client. This could be if it was just despawned and while relevant, or if it was previously relevant and just became irrelevant. Typically this is where you update client-side data about the entity (eg. removing it from a local list of entities to draw in depth order). This is called before destroying any entity data in this `Client:process` call, so you can safely refer to data from this or other entities.
+
+### `Entity:willSync(data, dt)`
+
+**Client-only.** Called when an entity is receiving new synchronizaton data from a server. `data` contains all the members of the entity on the server. So, for example, if you set `self.x` and `self.y` on the server, they would be `data.x` and `data.y`. `dt` is the time in seconds that elapsed since this snapshot was recorded on the server. `dt` is provided because the snapshot usually takes time to travel over the network. This way you could predict the correct values to use locally (eg. `self.x = data.x + data.vx * dt` to set X-axis position based on X-axis velocity).
+
+This method is called in the process of synchronizing entities, so it may be that the data of other entities is still old (hasn't been synchronized yet). This may matter if, for example, a `Player` instance has a `self.axeId` to refer to their axe, but the axe hasn't been constructed yet and will be constructed as the synchronization continues in the same `Client:process` call.
+
+### `Entity:didSync()`
+
+**Client-only.** Called after entity data has been synchronized from the server. This is called after all data in this `Client:process` call has been synchronized, so you can safely refer to data from other entities.
+
+### `Entity:didConstruct(...)`
+
+**Client and server.** Called when an instance of this entity has been constructed, whether on the server or the client. On the server this is called before `:didSpawn`. On clients this is called before `:didEnter`.
+
+This method is called in the process of synchronizing entities, so it may be that the data of other entities is still old (hasn't been synchronized yet). This may matter if, for example, a `Player` instance has a `self.axeId` to refer to their axe, but the axe hasn't been constructed yet and will be constructed as the synchronization continues in the same `Client:process` call.
+
+### `Entity:willDestruct()`
+
+**Client and server.** Called when an instance of this entity will be destroyed. This is called after `:willDespawn` on the server, and after `:willLeave` on the client.
