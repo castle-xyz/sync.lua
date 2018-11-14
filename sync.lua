@@ -188,11 +188,11 @@ end
 
 -- Spawning
 
-function Common:construct(id, typeName, ...)
+function Common:construct(id, typeName)
     local ent
     local ty = assert(typeNameToType[typeName], "no type with name '" .. typeName .. "'")
     if ty.construct then -- User-defined construction
-        ent = ty:construct(...)
+        ent = ty:construct()
     else -- Default construction
         ty.__index = ty
         ent = setmetatable({}, ty)
@@ -207,7 +207,7 @@ function Common:construct(id, typeName, ...)
     self.allPerType[typeName][id] = ent
 
     if ent.didConstruct then
-        ent:didConstruct(...)
+        ent:didConstruct()
     end
     return ent
 end
@@ -230,7 +230,7 @@ end
 
 function Server:spawn(typeName, ...)
     local id = genId()
-    local ent = self:construct(id, typeName, ...)
+    local ent = self:construct(id, typeName)
     if ent.didSpawn then
         ent:didSpawn(...)
     end
