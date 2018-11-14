@@ -88,7 +88,7 @@ Create an entity of the given type. Automatically synchronizes the entity to all
 #### Arguments
 
 - **`typeName` (string, required)**: The name of the type of entity to spawn.
-- **`...`**: Extra parameters to pass to the entity's [:didSpawn(...)](#entitydidspawn) event.
+- **`...`**: Extra parameters to pass to the entity's [`:didSpawn`](#entitydidspawn) event.
 
 #### Returns
 
@@ -215,29 +215,31 @@ When you call `Server:spawn(typeName, ...)` or when clients need to replicate a 
 
 ### `Entity:didSpawn(...)`
 
-**Server-only.** Called right after the entity is spawned. `...` are the extra arguments passed in `Server:Spawn(typeName, ...)`. Typically this is where you initialize synchronized data members of the entity and update other server-side data about the entity (eg. adding it to a table that finds entities by their positions).
+**Server-only.** Called right after the entity is spawned. `...` are the extra arguments passed in [`Server:spawn`](#serverspawntypename-). Typically this is where you initialize data members of the entity and update other server-side resources about the entity (eg. adding it to a table that finds entities by their positions).
 
 ### `Entity:willDespawn()`
 
-**Server-only.** Called right before the entity is despawned. `...` are the extra arguments passed in `Server:Spawn(typeName, ...)`.
+**Server-only.** Called right before the entity is despawned. Typically this is where you de-initialize server-side resources about the entity (eg. removing it from a table that finds entities by their positions).
 
 ### `Entity:didEnter()`
 
-**Client-only.** Called when an entity becomes relevant to the client. This could be if it was just spawned and is relevant, or if it was previously irrelevant and just became relevant. Typically this is where you update client-side data about the entity (eg. adding it to a local list of entities to draw in depth order). This is called after all data in this `Client:process` call has been synchronized, so you can safely refer to data from other entities.
+**Client-only.** Called when an entity becomes relevant to the client. This could be if it was just spawned and is relevant, or if it was previously irrelevant and just became relevant. Typically this is where you update client-side data about the entity (eg. adding it to a local list of entities to draw in depth order). This is called after all data in the current `Client:process` call has been synchronized, so you can safely refer to data from other entities.
 
 ### `Entity:willLeave()`
 
-**Client-only.** Called when an entity becomes irrelevant to the client. This could be if it was just despawned and while relevant, or if it was previously relevant and just became irrelevant. Typically this is where you update client-side data about the entity (eg. removing it from a local list of entities to draw in depth order). This is called before destroying any entity data in this `Client:process` call, so you can safely refer to data from this or other entities.
+**Client-only.** Called when an entity becomes irrelevant to the client. This could be if it was just despawned and while relevant, or if it was previously relevant and just became irrelevant. Typically this is where you update client-side data about the entity (eg. removing it from a local list of entities to draw in depth order). This is called before destroying any entity data in the current `Client:process` call, so you can safely refer to data from this or other entities.
 
 ### `Entity:willSync(data, dt)`
 
-**Client-only.** Called when an entity is receiving new synchronizaton data from a server. `data` contains all the members of the entity on the server. So, for example, if you set `self.x` and `self.y` on the server, they would be `data.x` and `data.y`. `dt` is the time in seconds that elapsed since this snapshot was recorded on the server. `dt` is provided because the snapshot usually takes time to travel over the network. This way you could predict the correct values to use locally (eg. `self.x = data.x + data.vx * dt` to set X-axis position based on X-axis velocity).
+**Client-only.** Called when an entity is receiving new synchronization data from a server. `data` contains all the members of the entity on the server. So, for example, if you updated `self.x` and `self.y` on the server, they would be `data.x` and `data.y`. `dt` is the time in seconds that elapsed since this snapshot was recorded on the server. `dt` is provided because the snapshot usually takes time to travel over the network. This way you could predict the correct values to use locally (eg. `self.x = data.x + data.vx * dt` to set X-axis position based on X-axis velocity).
 
-This method is called in the process of synchronizing entities, so it may be that the data of other entities is still old (hasn't been synchronized yet). This may matter if, for example, a `Player` instance has a `self.axeId` to refer to their axe, but the axe hasn't been constructed yet and will be constructed as the synchronization continues in the same `Client:process` call.
+You can use this method to customize how an entity is synchronized. If you return `false` from this method, it skips the default synchronization logic (which just overwrites all members with the new data).
+
+This method is called on entities one by one, so it may be that the data of other entities is still old or doesn't exist yet (hasn't been synchronized yet). Say a `Player` instance spawns an axe and sets `self.axeId` in one frame on the server. In the client, it may be that `:willSync` is called on the `Player` first and the axe isn't constructed yet. It would be constructed by the time the current `Client:process` call finishes. If you just want to be notified when synchronization has happened, use [`:didSync`](#entitydidsync) instead, which makes sure all other entities have been synchronized too. `:willSync` is meant to be used when you want to customize how synchronization data is applied.
 
 ### `Entity:didSync()`
 
-**Client-only.** Called after entity data has been synchronized from the server. This is called after all data in this `Client:process` call has been synchronized, so you can safely refer to data from other entities.
+**Client-only.** Called after all entity data has been synchronized from the server. This is called after all data in the current `Client:process` call has been synchronized, so you can safely refer to data from other entities.
 
 ### `Entity:didConstruct(...)`
 
@@ -248,3 +250,9 @@ This method is called in the process of synchronizing entities, so it may be tha
 ### `Entity:willDestruct()`
 
 **Client and server.** Called when an instance of this entity will be destroyed. This is called after `:willDespawn` on the server, and after `:willLeave` on the client.
+
+### `Entity:isRelevant(controller)`
+
+**Server-only.** Called by the server when it is synchronizing an entity to check if it is relevant to a particular client. `controller` is the controller for the client. If the event returns `false`, the entity is deemed irrelevant to the client and not synchronized to it (or removed from the client if it's on the client at this moment).
+
+If this event isn't implemented, it's assumed to always return `true`. 

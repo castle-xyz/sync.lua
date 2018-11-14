@@ -311,7 +311,7 @@ function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to a
             else -- No `.getRelevants`, iterate through all in `syncs`
                 for id, sync in pairs(syncs) do
                     if sync ~= SYNC_LEAVE and
-                            sync.isRelevant and not sync:isRelevant(controller) then
+                            sync.isRelevant and (sync:isRelevant(controller) == false) then
                         sync = SYNC_LEAVE
                     end
                     if not (sync == SYNC_LEAVE and not has[id]) then
