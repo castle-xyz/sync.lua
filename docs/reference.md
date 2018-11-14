@@ -101,7 +101,7 @@ Destroy an entity. Automatically removes the entity from all connected clients f
 
 #### Arguments
 
-- **`entOrId` (entity or id, required)**: The entity or the id of the entity to despawn.
+- **`entOrId` (entity or number, required)**: The entity or the id of the entity to despawn.
 
 #### Returns
 
@@ -119,11 +119,11 @@ Find an entity by id.
 
 #### Arguments
 
-- **`id` (number or nil)**: The id of the entity to look for.
+- **`id` (number or nil)**: The id of the entity to look for. This can be `nil` to avoid an extra check in your code for `nil`s.
 
 #### Returns
 
-Returns the entity that has the id given, or `nil` if the id is `nil` or if there is no entity with this id.
+Returns the entity that has the id given. Returns `nil` if the id is `nil` or if there is no entity with this id.
 
 ### `Common:byType(typeName)`
 
@@ -149,7 +149,7 @@ Typically this needs to be called on an entity when any of its members change th
 
 #### Arguments
 
-- **`entOrId` (entity or id, required)**: The entity or the id of the entity to mark as needing synchronization.
+- **`entOrId` (entity or number, required)**: The entity or the id of the entity to mark as needing synchronization.
 
 #### Returns
 
