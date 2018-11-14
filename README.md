@@ -1,4 +1,4 @@
-![playing 'triangle warz' with some friends!](./preview_triangle_warz.gif)
+<p align="center"><img src="./preview_triangle_warz.gif"></p>
 
 # sync.lua
 
