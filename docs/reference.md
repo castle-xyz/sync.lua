@@ -25,6 +25,18 @@
      * [Client.controller](#clientcontroller)
   * [Time](#time)
      * [Client:serverTime()](#clientservertime)
+  * [Types and entity construction](#types-and-entity-construction)
+     * [sync.registerType(typeName, ty)](#syncregistertypetypename-ty)
+     * [Entity construction](#entity-construction)
+  * [Entity events](#entity-events)
+     * [Entity:didSpawn(...)](#entitydidspawn)
+     * [Entity:willDespawn()](#entitywilldespawn)
+     * [Entity:didEnter()](#entitydidenter)
+     * [Entity:willLeave()](#entitywillleave)
+     * [Entity:willSync(data, dt)](#entitywillsyncdata-dt)
+     * [Entity:didSync()](#entitydidsync)
+     * [Entity:didConstruct(...)](#entitydidconstruct)
+     * [Entity:willDestruct()](#entitywilldestruct)
 
 ## Module
 
@@ -76,7 +88,7 @@ Create an entity of the given type. Automatically synchronizes the entity to all
 #### Arguments
 
 - **`typeName` (string, required)**: The name of the type of entity to spawn.
-- **`...`**: Extra parameters to pass to the type's constructor and entity's `:didConstruct` and `:didSpawn` events.
+- **`...`**: Extra parameters to pass to the entity's [:didSpawn(...)](#entitydidspawn) event.
 
 #### Returns
 
