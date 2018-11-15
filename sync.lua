@@ -10,8 +10,8 @@ local pairs, next, type = pairs, next, type
 
 local CLOCK_SYNC_PERIOD = 1 -- Seconds between clock sync attempts
 
--- 3 chanenls for syncs, 1 for clock syncs
-local MAX_SYNC_CHANNEL = 2
+-- 200 sync channels, 1 clock sync channel
+local MAX_SYNC_CHANNEL = 199
 local CLOCK_SYNC_CHANNEL = MAX_SYNC_CHANNEL + 1
 local MAX_CHANNEL = CLOCK_SYNC_CHANNEL
 
@@ -133,10 +133,10 @@ function Client:init(options)
 
     self.isServer, self.isClient = false, true
 
-    self.host = enet.host_create(nil, 64, MAX_CHANNEL + 1)
+    self.host = enet.host_create()
     self.host:compress_with_range_coder()
 
-    self.serverPeer = self.host:connect(options.address)
+    self.serverPeer = self.host:connect(options.address, MAX_CHANNEL + 1)
     self.controller = nil
 
     self.incomingSyncDumps = {} -- `ent.__id` -> `bitser.dumps(sync)` or `SYNC_LEAVE`
