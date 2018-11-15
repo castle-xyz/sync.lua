@@ -47,7 +47,7 @@
 
 ## Initializing clients and servers
 
-*sync.lua* synchronizes state using a client / server architecture. The *server* is the authority over all state. *clients* connect to the server and receive state updates from it. Clients usually connect to a sever running on a different computer over the network. A client can also connect to a server on the same computer or in the same process, which is useful for testing or to allow one of the players of a game to host a server.
+*sync.lua* synchronizes state using a *client / server* architecture. The server is the authority over all state. clients connect to the server and receive state updates from it. Clients usually connect to a sever running on a different computer over the network. A client can also connect to a server on the same computer or in the same process, which is useful for testing or to allow one of the players of a game to host a server.
 
 ### `sync.newServer(options)`
 
