@@ -105,10 +105,8 @@ end
 
 function Player:createBody()
     if not self.__local.body then
-        for _, ent in pairs(self.__mgr.all) do
-            if ent.__typeName == 'Room' then
-                self.__local.world = ent.__local.world
-            end
+        for _, ent in pairs(self.__mgr:getByType('Room')) do
+            self.__local.world = ent.__local.world
         end
         if self.__local.world then
             self.__local.body = love.physics.newBody(self.__local.world, 0, 0, 'dynamic')
@@ -151,7 +149,7 @@ end
 
 function Controller:setWalkState(walkState)
     if self.playerId then
-        self.__mgr:byId(self.playerId).walkState = walkState
+        self.__mgr:getById(self.playerId).walkState = walkState
     end
 end
 
@@ -170,7 +168,7 @@ local client
 
 function love.update(dt)
     if server then
-        for id, ent in pairs(server.all) do
+        for id, ent in pairs(server:getAll()) do
             if ent.update then
                 ent:update(dt)
             end
@@ -182,7 +180,7 @@ function love.update(dt)
     if client then
         client:process()
 
-        for id, ent in pairs(client.all) do
+        for id, ent in pairs(client:getAll()) do
             if ent.update then
                 ent:update(dt)
             end
@@ -229,7 +227,7 @@ function love.draw()
     if client then
         love.graphics.stacked('all', function()
             local drawOrder = {}
-            for id, ent in pairs(client.all) do
+            for id, ent in pairs(client:getAll()) do
                 if ent.draw then
                     table.insert(drawOrder, ent)
                 end

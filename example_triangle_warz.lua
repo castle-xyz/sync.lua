@@ -80,13 +80,14 @@ function Triangle:update(dt)
     -- Iterate through `Bullet`s and check for collision
     local nang = -math.atan2(self.targetY - self.y, self.targetX - self.x)
     local sin, cos = math.sin(nang), math.cos(nang)
-    for _, ent in pairs(self.__mgr.all) do
-        if ent.__typeName == 'Bullet' and ent.ownerId ~= self.__id then
-            local dx, dy = ent.x - self.x, ent.y - self.y
+    for _, bullet in pairs(self.__mgr:getByType('Bullet')) do
+        if bullet.ownerId ~= self.__id then
+            local dx, dy = bullet.x - self.x, bullet.y - self.y
             local hitX, hitY
             if dx * dx + dy * dy < 3600 then -- Ignore if far
                 for i = -1, 1, 0.2 do -- Check a few points to prevent 'tunneling'
-                    local bx, by = ent.x + 18 * i * ent.dirX, ent.y + 18 * i * ent.dirY
+                    -- Isosceles triangle point membership math...
+                    local bx, by = bullet.x + 18 * i * bullet.dirX, bullet.y + 18 * i * bullet.dirY
                     local dx, dy = bx - self.x, by - self.y
                     local rdx, rdy = dx * cos - dy * sin, dx * sin + dy * cos
                     if rdx > -20 then
@@ -100,19 +101,19 @@ function Triangle:update(dt)
                 end
             end
             if hitX then -- We got shot!
-                self.__mgr:despawn(ent)
+                self.__mgr:despawn(bullet)
                 self.health = self.health - 5
                 if self.health <= 0 then -- We died! Big explosion, respawn, award shooter.
                     self.__mgr:spawn('Explosion', self.x, self.y, self.r, self.g, self.b, true)
                     self.health = 100
                     self.x, self.y = math.random(10, W - 10), math.random(10, H - 10)
-                    local shooter = self.__mgr.all[ent.ownerId]
+                    local shooter = self.__mgr:getById(bullet.ownerId)
                     if shooter then
                         shooter.score = shooter.score + 1
                         self.__mgr:sync(shooter)
                     end
                 else -- Just got shot, didn't die, smaller explosion
-                    self.__mgr:spawn('Explosion', hitX, hitY, ent.r, ent.g, ent.b)
+                    self.__mgr:spawn('Explosion', hitX, hitY, bullet.r, bullet.g, bullet.b)
                 end
                 self.__mgr:sync(self)
             end
@@ -316,19 +317,19 @@ end
 
 function Controller:setTarget(x, y)
     if self.triangleId then
-        self.__mgr:byId(self.triangleId):setTarget(x, y)
+        self.__mgr:getById(self.triangleId):setTarget(x, y)
     end
 end
 
 function Controller:setWantToShoot(wantToShoot)
     if self.triangleId then
-        self.__mgr:byId(self.triangleId):setWantToShoot(wantToShoot)
+        self.__mgr:getById(self.triangleId):setWantToShoot(wantToShoot)
     end
 end
 
 function Controller:setWantToWalk(up, down, left, right)
     if self.triangleId then
-        self.__mgr:byId(self.triangleId):setWantToWalk(up, down, left, right)
+        self.__mgr:getById(self.triangleId):setWantToWalk(up, down, left, right)
     end
 end
 
@@ -361,7 +362,7 @@ function love.update(dt)
 
     -- Do game logic on the server
     if server then
-        for _, ent in pairs(server.all) do
+        for _, ent in pairs(server:getAll()) do
             if ent.update then
                 ent:update(dt)
             end
@@ -370,7 +371,7 @@ function love.update(dt)
 
     -- Update explosions on client (particle systems are local)
     if client then
-        for _, ent in pairs(client.all) do
+        for _, ent in pairs(client:getAll()) do
             if ent.__typeName == 'Explosion' then
                 ent:update(dt)
             end
@@ -476,33 +477,25 @@ function love.draw()
 
             if client and client.controller then -- Connected and playing
                 -- Draw triangles
-                for _, ent in pairs(client.all) do
-                    if ent.__typeName == 'Triangle' then
-                        ent:draw(ent == client.controller.triangle) -- Tell if it's our triangle
-                    end
+                for _, ent in pairs(client:getByType('Triangle')) do
+                    ent:draw(ent == client.controller.triangle) -- Tell if it's our triangle
                 end
 
                 -- Draw bullets
-                for _, ent in pairs(client.all) do
-                    if ent.__typeName == 'Bullet' then
-                        ent:draw()
-                    end
+                for _, ent in pairs(client:getByType('Bullet')) do
+                    ent:draw()
                 end
 
                 -- Draw explosions
-                for _, ent in pairs(client.all) do
-                    if ent.__typeName == 'Explosion' then
-                        ent:draw()
-                    end
+                for _, ent in pairs(client:getByType('Explosion')) do
+                    ent:draw()
                 end
 
                 -- Draw scores in descending order
                 love.graphics.stacked('all', function()
                     local scoreOrder = {}
-                    for _, ent in pairs(client.all) do
-                        if ent.__typeName == 'Triangle' then
-                            table.insert(scoreOrder, ent)
-                        end
+                    for _, ent in pairs(client:getByType('Triangle')) do
+                        table.insert(scoreOrder, ent)
                     end
                     table.sort(scoreOrder, function(e1, e2)
                         if e1.score == e2.score then

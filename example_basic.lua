@@ -50,7 +50,7 @@ function Controller:willDespawn()
 end
 
 function Controller:setWalkState(up, down, left, right)
-    self.__mgr:byId(self.playerId):setWalkState(up, down, left, right)
+    self.__mgr:getById(self.playerId):setWalkState(up, down, left, right)
 end
 
 
@@ -92,7 +92,7 @@ end
 
 function love.update(dt)
     if server then
-        for _, ent in pairs(server.all) do
+        for _, ent in pairs(server:getAll()) do
             if ent.update then
                 ent:update(dt)
             end
@@ -108,7 +108,7 @@ end
 
 function love.draw()
     if client and client.controller then
-        for _, ent in pairs(client.all) do
+        for _, ent in pairs(client:getAll()) do
             if ent.__typeName == 'Player' then
                 ent:draw(ent.__id == client.controller.playerId)
             elseif ent.draw then

@@ -156,7 +156,7 @@ This is regular LÖVE code. Let's replace `love.draw` to draw our `Player` insta
 ```lua
 function love.draw()
     if client then
-        for id, ent in pairs(client.all) do
+        for id, ent in pairs(client:getAll()) do
             if ent.draw then
                 ent:draw()
             end
@@ -165,7 +165,7 @@ function love.draw()
 end
 ```
 
-`client.all` is a table of all entities replicated on the client, with unique id numbers as keys and the entity instances themselves as values (that's why we iterate with `for id, ent`). *sync.lua* has nothing to do with this `:draw` method or drawing logic, we're writing our own draw logic as we would in a regular LÖVE game. The only difference is that we need to look in `client` for the entities. An *entity* is just an instance of a type we registered with *sync.lua*.
+`client:getAll()` returns a table of all entities replicated on the client, with unique id numbers as keys and the entity instances themselves as values (that's why we iterate with `for id, ent`). *sync.lua* has nothing to do with this `:draw` method or drawing logic, we're writing our own draw logic as we would in a regular LÖVE game. The only difference is that we need to look in `client` for the entities. An *entity* is just an instance of a type we registered with *sync.lua*.
 
 Finally, let's make the `Controller` spawn a new `Player` instance on connecting and despawn it on disconnecting. Replace the code for `:didSpawn` and `:willDespawn` in `Controller`:
 
@@ -195,11 +195,11 @@ Any method defined on a `Controller` can be called from the client. Let's add a 
 
 ```lua
 function Controller:setWalkState(up, down, left, right)
-    self.__mgr:byId(self.playerId):setWalkState(up, down, left, right)
+    self.__mgr:getById(self.playerId):setWalkState(up, down, left, right)
 end
 ```
 
-`self.__mgr:byId(<id>)` lets you find entities by their id. Here we use it to find the `Player` for this controller. We'll pass `true` or `false` for each parameter depending on whether we want the `Player` to walk in that direction. Of course, we haven't defined this method on `Player` yet, so let's do that. We'll use `vx` and `vy` properties on `Player` to keep track of the velocity:
+`self.__mgr:getById(<id>)` lets you find entities by their id. Here we use it to find the `Player` for this controller. We'll pass `true` or `false` for each parameter depending on whether we want the `Player` to walk in that direction. Of course, we haven't defined this method on `Player` yet, so let's do that. We'll use `vx` and `vy` properties on `Player` to keep track of the velocity:
 
 ```lua
 function Player:setWalkState(up, down, left, right)
@@ -235,7 +235,7 @@ Let's actually call this `:update` method on the server. In `love.update`, befor
 
 ```lua
     if server then
-        for _, ent in pairs(server.all) do
+        for _, ent in pairs(server:getAll()) do
             if ent.update then
                 ent:update(dt)
             end
@@ -299,12 +299,12 @@ function Player:draw(isOwn)
 end
 ```
 
-Now, in `love.draw` we should call this passing `true` if it's the user's own `Player`. In `love.draw`, we iterate through entities in `client.all`, which is a table containing the local replicas of the games entities. Since we set `self.playerId` in `Controller`, and `client.controller` refers to the local `Controller` replica for a client, `client.controller.playerId` would be the id of the `Player` for `client`. So we can change `love.draw` to the following:
+Now, in `love.draw` we should call this passing `true` if it's the user's own `Player`. In `love.draw`, we iterate through entities in `client:getAll()`, which is a table containing the local replicas of the games entities. Since we set `self.playerId` in `Controller`, and `client.controller` refers to the local `Controller` replica for a client, `client.controller.playerId` would be the id of the `Player` for `client`. So we can change `love.draw` to the following:
 
 ```lua
 function love.draw()
     if client and client.controller then
-        for _, ent in pairs(client.all) do
+        for _, ent in pairs(client:getAll()) do
             if ent.__typeName == 'Player' then
                 ent:draw(ent.__id == client.controller.playerId)
             elseif ent.draw then
@@ -331,7 +331,7 @@ That's it for this basic tutorial! To recap, here are the concepts we went over:
 - **Controllers**: Each client has a controller entity representing it, whose lifetime matches the client's connection. Clients can remotely call methods on the server controller instance through the local replica at `client.controller`.
 - **The `:didSpawn` event**: *sync.lua* calls `:didSpawn` on an entity when it is spawned.
 - **`self.__mgr`, `:spawn` and `:despawn` calls**: Every entity has a `self.__mgr`, its *manager*, that lets you spawn new  entities or despawn existing ones.
-- **The `:byId` call**: `self.__mgr:byId(<id>)` lets you find an entity by its *id* -- a unique integer that identifies that entity as returned by `:spawn`.
+- **The `:getById` call**: `self.__mgr:getById(<id>)` lets you find an entity by its *id* -- a unique integer that identifies that entity as returned by `:spawn`.
 - **The `:sync` call**: *sync.lua* needs you to explicitly call `self.__mgr:sync(<entity>)` specifying the entity to mark as needing synchronization.
 
 All the other concepts used here--such drawing and updating--are from regular LÖVE game development. All *sync.lua* does is synchronize entity state and lifetimes among multiple computers, it isn't involved with updating, drawing, input or other game logic. This lets you implement those things in a way suited to your particular game.

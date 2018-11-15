@@ -14,9 +14,9 @@
      * [Server:spawn(typeName, ...)](#serverspawntypename-)
      * [Server:despawn(entOrId)](#serverdespawnentorid)
   * [Querying entities](#querying-entities)
-     * [Common.all](#commonall)
-     * [Common:byId(id)](#commonbyidid)
-     * [Common:byType(typeName)](#commonbytypetypename)
+     * [Common:getAll()](#commongetall)
+     * [Common:getById(id)](#commongetbyidid)
+     * [Common:getByType(typeName)](#commongetbytypetypename)
   * [Synchronizing entities](#synchronizing-entities)
      * [Common:sync(entOrId)](#commonsyncentorid)
   * [Processing](#processing)
@@ -24,7 +24,7 @@
   * [Controllers](#controllers)
      * [Client.controller](#clientcontroller)
   * [Time](#time)
-     * [Client:serverTime()](#clientservertime)
+     * [Common:getTime()](#commongettime)
   * [Types and entity construction](#types-and-entity-construction)
      * [sync.registerType(typeName, Type)](#syncregistertypetypename-type)
      * [Entity construction](#entity-construction)
@@ -112,11 +112,19 @@ Nothing.
 
 ## Querying entities
 
-### `Common.all`
+### `Common:getAll()`
 
-A table of all entities, where the keys are the ids of the entities and the values are the corresponding entities. This table is used internally by *sync.lua*, so *make sure not to modify* this table.
+Get all of the entities.
 
-### `Common:byId(id)`
+#### Arguments
+
+None.
+
+#### Returns
+
+Returns a table where the keys are the ids of the entities and the values are the corresponding entities. This table is newly created by *sync.lua* on each call, so you may modify it as you wish.
+
+### `Common:getById(id)`
 
 Find an entity by id.
 
@@ -128,7 +136,7 @@ Find an entity by id.
 
 Returns the entity that has the id given. Returns `nil` if the id is `nil` or if there is no entity with this id.
 
-### `Common:byType(typeName)`
+### `Common:getByType(typeName)`
 
 Find entities by type.
 
@@ -138,7 +146,7 @@ Find entities by type.
 
 #### Returns
 
-Returns a table of all the entities of the named type, where the keys are the ids of the entities and the values are the corresponding entities. Returns a direct reference to a table used internally by *sync.lua*, so *make sure not to modify* this table.
+Returns a table of all the entities of the named type, where the keys are the ids of the entities and the values are the corresponding entities.  This table is newly created by *sync.lua* on each call, so you may modify it as you wish.
 
 ## Synchronizing entities
 
@@ -180,9 +188,19 @@ The controller for a client. This is a local replica synchronized from the serve
 
 ## Time
 
-### `Client:serverTime()`
+### `Common:getTime()`
 
-Get expected value returned by `love.timer.getTime()` as called on the server at this moment. *sync.lua* computes this value by synchronizing the client-server time difference periodically while accounting for network delay.
+Get the value of a timer synchronized across the server and all clients.
+
+#### Arguments
+
+None.
+
+#### Returns
+
+A number, which is the time in seconds.
+
+On the server, this just returns `love.timer.getTime()`. On clients, gets the expected value returned by `love.timer.getTime()` as called on the server at this moment. *sync.lua* computes this by synchronizing the client-server time difference periodically while accounting for network delay. This allows you to write game code against a common time. It is also used to compute `dt` for [`:willSync`](#entitywillsyncdata-dt).
 
 ## Types and entity construction
 

@@ -176,13 +176,27 @@ end
 
 -- Querying
 
-function Common:byId(id)
-    if id == nil then return nil end
+function Common:getAll()
+    local result = {}
+    for id, ent in pairs(self.all) do
+        result[id] = ent
+    end
+    return result
+end
+
+function Common:getById(id)
+    if id == nil then
+        return nil
+    end
     return self.all[id]
 end
 
-function Common:byType(typeName)
-    return self.allPerType[typeName]
+function Common:getByType(typeName)
+    local result = {}
+    for id, ent in pairs(self.allPerType[typeName]) do
+        result[id] = ent
+    end
+    return result
 end
 
 
@@ -239,7 +253,7 @@ function Server:spawn(typeName, ...)
 end
 
 function Server:despawn(entOrId)
-    local ent = type(entOrId) == 'table' and entOrId or self:byId(entOrId)
+    local ent = type(entOrId) == 'table' and entOrId or self:getById(entOrId)
     if ent.__despawned then
         return
     end
@@ -255,7 +269,7 @@ end
 -- Sync
 
 function Server:sync(entOrId)
-    local ent = type(entOrId) == 'table' and entOrId or self:byId(entOrId)
+    local ent = type(entOrId) == 'table' and entOrId or self:getById(entOrId)
     self.syncsPerType[ent.__typeName][ent.__id] = ent.__despawned and SYNC_LEAVE or ent
 end
 
@@ -375,7 +389,7 @@ function Common:applyReceivedSyncs()
     end
 
     -- Apply syncs then notify
-    local time = self:serverTime()
+    local time = self:getTime()
     local synced, enterers = getFromPool(), getFromPool()
     for id, sync in pairs(appliable) do
         local ent = self.all[id]
@@ -493,7 +507,11 @@ function Client:receiveClockSync(peer, requestTime, serverTime)
     end
 end
 
-function Client:serverTime()
+function Server:getTime()
+    return love.timer.getTime()
+end
+
+function Client:getTime()
     return love.timer.getTime() + self.lastClockSyncDelta
 end
 

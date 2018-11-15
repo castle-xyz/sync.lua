@@ -80,7 +80,7 @@ function Stuff:didDespawn()
 end
 
 function Stuff.getRelevants(controller)
-    local player = controller.__mgr:byId(controller.playerId)
+    local player = controller.__mgr:getById(controller.playerId)
     local ids = {}
     Stuff.shash:each(
         player.x - 0.5 * DISPLAY_SIZE, player.y - 0.5 * DISPLAY_SIZE, DISPLAY_SIZE, DISPLAY_SIZE,
@@ -156,7 +156,7 @@ function Controller:willDespawn()
 end
 
 function Controller:setAcceleration(ax, ay)
-    self.__mgr:byId(self.playerId):setAcceleration(ax, ay)
+    self.__mgr:getById(self.playerId):setAcceleration(ax, ay)
 end
 
 
@@ -179,7 +179,7 @@ function love.update(dt)
             server:process()
         end
 
-        for _, ent in pairs(server.all) do
+        for _, ent in pairs(server:getAll()) do
             if ent.update then
                 ent:update(dt)
             end
@@ -190,7 +190,7 @@ function love.update(dt)
             client:process()
         end
 
-        for _, ent in pairs(client.all) do
+        for _, ent in pairs(client:getAll()) do
             if ent.update then
                 ent:update(dt)
             end
@@ -248,7 +248,7 @@ function love.draw()
     if client and client.controller then
         local numDrawables = 0
 
-        local player = client:byId(client.controller.playerId)
+        local player = client:getById(client.controller.playerId)
 
         love.graphics.stacked('all', function()
             local ww, wh = love.graphics.getDimensions()
@@ -259,7 +259,7 @@ function love.draw()
             love.graphics.translate(-player.x, -player.y)
 
             local order = {}
-            for _, ent in pairs(client.all) do
+            for _, ent in pairs(client:getAll()) do
                 if ent.draw then
                     table.insert(order, ent)
                     numDrawables = numDrawables + 1
@@ -278,7 +278,7 @@ function love.draw()
             love.graphics.setColor(0.2, 0.2, 0.2, 1)
             love.graphics.setLineWidth(3)
             love.graphics.rectangle('line', mx, my, MINIMAP_SIZE, MINIMAP_SIZE)
-            for id, ent in pairs(client.allPerType.Player) do
+            for id, ent in pairs(client:getByType('Player')) do
                 local px = mx + 0.5 * MINIMAP_SIZE + MINIMAP_SIZE * ent.x / WORLD_SIZE
                 local py = my + 0.5 * MINIMAP_SIZE + MINIMAP_SIZE * ent.y / WORLD_SIZE
                 if id == player.__id then
