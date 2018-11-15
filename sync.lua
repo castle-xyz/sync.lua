@@ -8,9 +8,11 @@ local bitser = require 'bitser'
 local pairs, next, type = pairs, next, type
 
 
-local BANDWIDTH_LIMIT = 0 -- Bandwidth limit in bytes per second -- 0 for unlimited
 local CLOCK_SYNC_PERIOD = 1 -- Seconds between clock sync attempts
-local CHANNEL_COUNT = 255
+
+local MAX_SYNC_CHANNEL = 199 -- Use channels (0-199) for syncs
+local CLOCK_SYNC_CHANNEL = 200
+local MAX_CHANNEL = 200
 
 local SYNC_LEAVE = 1 -- Sentinel to sync entity leaving -- single byte when bitser'd
 
@@ -106,11 +108,10 @@ function Server:init(options)
     self.controllerTypeName = assert(options.controllerTypeName,
         "server needs `options.controllerTypeName`")
 
-    self.host = enet.host_create(options.address or '*:22122', 64, CHANNEL_COUNT)
+    self.host = enet.host_create(options.address or '*:22122', 64, MAX_CHANNEL + 1)
     if not self.host then
         error("couldn't create server, port may already be in use")
     end
-    self.host:bandwidth_limit(BANDWIDTH_LIMIT, BANDWIDTH_LIMIT)
 
     self.controllers = {} -- `peer` -> controller
 
@@ -120,7 +121,7 @@ function Server:init(options)
     end
     self.peerHasPerType = {} -- `peer` -> `ent.__typeName` -> `ent.__id` -> `true` for all on `peer`
 
-    self.channel = 0
+    self.nextSyncChannel = 0
 end
 
 function Client:init(options)
@@ -130,8 +131,7 @@ function Client:init(options)
 
     self.isServer, self.isClient = false, true
 
-    self.host = enet.host_create()
-    self.host:bandwidth_limit(BANDWIDTH_LIMIT, BANDWIDTH_LIMIT)
+    self.host = enet.host_create(nil, 64, MAX_CHANNEL + 1)
 
     self.serverPeer = self.host:connect(options.address)
     self.controller = nil
@@ -276,9 +276,15 @@ end
 function Client:sync(entOrId)
 end
 
-function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to all connected peers
+function Server:sendSyncs(peer, syncsPerType, channel)
     if not next(syncsPerType) then -- Empty?
         return
+    end
+
+    -- Rotate channels unless specified
+    if not channel then
+        channel = self.nextSyncChannel
+        self.nextSyncChannel = (self.nextSyncChannel + 1) % (MAX_SYNC_CHANNEL + 1)
     end
 
     -- Memoized function to dump so we only serialize each required entity once
@@ -336,11 +342,10 @@ function Server:sendSyncs(peer, syncsPerType) -- `peer == nil` to broadcast to a
             end
         end
         if next(dumps) then -- Non-empty?
-            peer:send(rpcToData('receiveSyncDumps', dumps, timestamp, self.channel))
+            peer:send(rpcToData('receiveSyncDumps', dumps, timestamp), channel)
         end
         releaseToPool(dumps)
     end
-    self.channel = (self.channel + 1) % CHANNEL_COUNT
 
     releaseToPool(allDumps)
 end
@@ -469,9 +474,9 @@ function Server:didConnect(peer)
     for typeName in pairs(typeNameToType) do
         self.peerHasPerType[peer][typeName] = {}
     end
-    peer:send(rpcToData('receiveClockSync', nil, love.timer.getTime()))
-    self:sendSyncs(peer, self.allPerType)
-    peer:send(rpcToData('receiveControllerId', controllerId))
+    peer:send(rpcToData('receiveClockSync', nil, love.timer.getTime()), CLOCK_SYNC_CHANNEL)
+    self:sendSyncs(peer, self.allPerType, 0) -- Use channel 0 for this and next to ensure in-order
+    peer:send(rpcToData('receiveControllerId', controllerId), 0)
 end
 
 function Client:didConnect()
@@ -493,7 +498,7 @@ end
 
 defRpc('receiveClockSyncRequest')
 function Server:receiveClockSyncRequest(peer, requestTime)
-    peer:send(rpcToData('receiveClockSync', requestTime, love.timer.getTime()))
+    peer:send(rpcToData('receiveClockSync', requestTime, love.timer.getTime()), CLOCK_SYNC_CHANNEL)
 end
 
 defRpc('receiveClockSync')
