@@ -464,7 +464,7 @@ function love.resize() -- Need to recreate `effect` with new canvas size
 end
 
 function love.draw()
---    effect(function()
+    effect(function()
         love.graphics.stacked('all', function()
             -- Scale down the display and center the display
             local w, h = DISPLAY_SCALE * W, DISPLAY_SCALE * H
@@ -542,6 +542,6 @@ don't worry, your own lasers can't hurt you
 press ENTER or touch to connect]], 20, 20)
             end
         end)
---    end)
+    end)
 end
 
