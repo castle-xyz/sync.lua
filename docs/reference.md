@@ -26,7 +26,7 @@
   * [Time](#time)
      * [Client:serverTime()](#clientservertime)
   * [Types and entity construction](#types-and-entity-construction)
-     * [sync.registerType(typeName, ty)](#syncregistertypetypename-ty)
+     * [sync.registerType(typeName, Type)](#syncregistertypetypename-type)
      * [Entity construction](#entity-construction)
   * [Entity events](#entity-events)
      * [Entity:didSpawn(...)](#entitydidspawn)
@@ -37,6 +37,9 @@
      * [Entity:didSync()](#entitydidsync)
      * [Entity:didConstruct(...)](#entitydidconstruct)
      * [Entity:willDestruct()](#entitywilldestruct)
+  * [Relevance](#relevance)
+     * [Type.getRelevants(controller) (type-level relevance)](#typegetrelevantscontroller-type-level-relevance)
+     * [Entity:isRelevant(controller) (entity-level relevance)](#entityisrelevantcontroller-entity-level-relevance)
 
 ## Module
 
@@ -141,11 +144,9 @@ Returns a table of all the entities of the named type, where the keys are the id
 
 ### `Common:sync(entOrId)`
 
-Mark an entity as needing synchronization.
+Mark an entity as needing synchronization. On server instances the state of the entity is sent to all clients for which the entity is relevant (the actual synchronization is sent on the next `:process` call). Typically this needs to be called on an entity when any of its members change that clients need to be aware of, or if its return value for `:isRelevant` may have changed for any controller.
 
-On server instances the state of the entity is sent to all clients for which the entity is relevant (the actual synchronization is sent on the next `:process` call). On client instances this doesn't send any synchronizations, but the method is still provided so that you can call `:sync` in shared code without causing an error.
-
-Typically this needs to be called on an entity when any of its members change that clients need to be aware of, or if its return value for `:isRelevant` may have changed for any controller.
+The method can also be called on client instances but does nothing. This is so you can call `:sync` in common code without causing an error. 
 
 #### Arguments
 
@@ -255,14 +256,22 @@ This method is called in the process of synchronizing entities, so it may be tha
 
 *Relevance* is a feature that lets a *sync.lua* server only send updates about some entities to a particular client rather than about all of them. This can significantly improve performance. For example, in a world-exploration game where players walk around exploring a world with trees, it may be that there are close to 2000 trees but only 10 of them are visible to each player at a time. Marking only visible trees as relevant would reduce bandwidth usage and cpu usage for serialization (converting entity data to synchronization messages) by about 200x.
 
-### `Type.getRelevants(controller)`
+If you haven't implemented relevance features for a type, *sync.lua* assumes that all entities of that type are relevant to all clients.
 
-**Server-only.** Called by the server to ask a type which of its entities are relevant to a particular client. If defined, this method should return a table where the keys are the ids of the entities relevant to the client represented by `controller`. This could be more efficient than `Entity:isRelevant` if you have a fast way to query relevant entities (say using a spatial hash).
+Relevance can be implemented in one of two ways -- at the type level (have a type return all relevant entities) or at the entity level (have each entity compute whether it is relevant to a client). It is recommended to implement it at the type-level if possible because that may be more performant.
 
-If this method isn't implemented, `Entity:isRelevant` is used for the entities of this type if defined, else all entities of this type are deemed relevant to every client.
+### `Type.getRelevants(controller)` (type-level relevance)
 
-### `Entity:isRelevant(controller)`
+**Server-only.** Called by the server in every `Server:process` call to ask a type which of its entities are relevant to a particular client. If defined, this method should return a table where the keys are the ids of the entities relevant to the client represented by `controller`. Only this entities are synchronized to that client, and other entities are removed from the client if present.
 
-**Server-only.** Called by the server when it is synchronizing an entity to check if it is relevant to a particular client. `controller` is the controller for the client. If the event returns `false`, the entity is deemed irrelevant to the client and not synchronized to it (or removed from the client if it's on the client at this moment). If the return value of this method would go from `false` to `true`, you need to call `Server:sync` on the entity to mark it as needing to be considered for synchronization again.
+This could be more efficient than `Entity:isRelevant` if you have a fast way to query relevant entities (say using a spatial hash).
 
-If both this method and `Type.getRelevants` are unimplemented for a type of entity, all entities of that type of entity are deemed relevant to every client.
+If this method isn't implemented, `Entity:isRelevant` is used for the entities of this type if defined. If that isn't defined either, all entities of this type are deemed relevant to every client.
+
+### `Entity:isRelevant(controller)` (entity-level relevance)
+
+**Server-only.** Called by the server when it is synchronizing an entity in a `Server:process` call to check if it is relevant to a particular client. `controller` is the controller for the client. If the method returns `false`, the entity is deemed irrelevant to the client and not synchronized to it (or removed from the client if it's on the client at this moment). When the return value of this method goes from `false` to `true`, you need to call `Server:sync` on the entity to mark it as needing to be considered for synchronization again.
+
+This is less efficient than implementing `Type.getRelevants` for the type of the entity, because the server still has to iterate over all marked entities (whereas you may be able to implement an efficient query in `Type.getRelevants` based on your game).
+
+If `Type.getRelevants` is implemented for the type of this entity, this method is ignored and type-level relevance is used instead. If both this method and `Type.getRelevants` are unimplemented for a type of entity, all entities of that type of entity are deemed relevant to every client.
