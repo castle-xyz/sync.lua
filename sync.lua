@@ -366,6 +366,10 @@ function Common:applyReceivedSyncs()
         return
     end
 
+    if not self.lastClockSyncDelta then -- Wait till clock sync
+        return
+    end
+
     -- Deserialize syncs and notify leavers
     local leavers = getFromPool() -- `ent.__id` -> `ent` for entities that left
     local appliable = getFromPool() -- `id` -> `sync` for non-leaving syncs
@@ -467,6 +471,7 @@ function Client:receiveControllerId(peer, controllerId)
 end
 
 function Server:didConnect(peer)
+    -- Create a controller and initialize per-peer data
     assert(not self.controllers[peer], "controller for `peer` already exists")
     local controllerId, controller = self:spawn(self.controllerTypeName)
     self.controllers[peer] = controller
@@ -474,8 +479,10 @@ function Server:didConnect(peer)
     for typeName in pairs(typeNameToType) do
         self.peerHasPerType[peer][typeName] = {}
     end
-    peer:send(rpcToData('receiveClockSync', nil, love.timer.getTime()), CLOCK_SYNC_CHANNEL)
-    self:sendSyncs(peer, self.allPerType, 0) -- Use channel 0 for this and next to ensure in-order
+
+    -- Send all of these on channel 0 to ensure in-order delivery
+    peer:send(rpcToData('receiveClockSync', nil, love.timer.getTime()), 0)
+    self:sendSyncs(peer, self.allPerType, 0)
     peer:send(rpcToData('receiveControllerId', controllerId), 0)
 end
 
