@@ -10,8 +10,8 @@ local pairs, next, type = pairs, next, type
 
 local CLOCK_SYNC_PERIOD = 1 -- Seconds between clock sync attempts
 
--- 64 sync channels, 1 clock sync channel
-local MAX_SYNC_CHANNEL = 63
+-- 200 sync channels, 1 clock sync channel
+local MAX_SYNC_CHANNEL = 199
 local CLOCK_SYNC_CHANNEL = MAX_SYNC_CHANNEL + 1
 local MAX_CHANNEL = CLOCK_SYNC_CHANNEL
 
