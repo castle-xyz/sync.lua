@@ -189,25 +189,25 @@ Get expected value returned by `love.timer.getTime()` as called on the server at
 
 Note the **difference between 'spawn' and 'construct'**: *spawning* an entity only happens on the server and only once for that entity id; while *constructing* happens once on the server for the main instance but also happens on clients when they construct local replicas of that entity. 
 
-### `sync.registerType(typeName, ty)`
+### `sync.registerType(typeName, Type)`
 
 Register a type with the system, or create and return a new registered type.
 
 #### Arguments
 
 - **`typeName` (string, required)**: The name to register this type under. This is what you will use in `Server:spawn`.
-- **`ty` (table, optional)**: The type itself. Pass this to register an existing table. Defaults to `{}` (a new empty table).
+- **`Type` (table, optional)**: The type itself. Pass this to register an existing table. Defaults to `{}` (a new empty table).
 
 #### Returns
 
-Returns `ty`, the type registered. This is useful so you can do `local Type = sync.register('Type')` to use the default value `{}` for `ty` but still save the value.
+Returns `Type`, the type registered. This is useful so you can do `local MyType = sync.register('MyType')` to use the default value `{}` for `Type` but still save the value.
 
 ### Entity construction
 
-When you call `Server:spawn(typeName, ...)` or when clients need to replicate a new entity from the server, *sync.lua* constructs an entity instance from a type. To do this, it first looks up the table `ty` previously registered under that `typeName` using `sync.registerType(typeName, ty)`. Then, it does one of two things based on whether `ty.construct` is defined:
+When you call `Server:spawn(typeName, ...)` or when clients need to replicate a new entity from the server, *sync.lua* constructs an entity instance from a type. To do this, it first looks up the table `Type` previously registered under that `typeName` using `sync.registerType(typeName, Type)`. Then, it does one of two things based on whether `Type.construct` is defined:
 
-- **`ty.construct` is not defined (default construction)**: *sync.lua* sets `ty.__index = ty` and uses `setmetatable({}, ty)` as the new entity. In effect, the entity 'inherits' from `ty`. This is how the [basic example defines methods for `Player`](https://github.com/expo/sync.lua/blob/48c2ea1561f3819ba0598b62c43639345caa2590/example_basic.lua#L7-L39), for example.
-- **`ty.construct` is defined (custom construction)**: `ty:construct()` is called and the returned value (which should be a table) is used as the entity. This lets you define custom construction behaviors (eg. to tie *sync.lua* with your own class system or entity-component system).
+- **`Type.construct` is not defined (default construction)**: *sync.lua* sets `Type.__index = Type` and uses `setmetatable({}, Type)` as the new entity. In effect, the entity 'inherits' from `Type`. This is how the [basic example defines methods for `Player`](https://github.com/expo/sync.lua/blob/48c2ea1561f3819ba0598b62c43639345caa2590/example_basic.lua#L7-L39), for example.
+- **`Type.construct` is defined (custom construction)**: `Type:construct()` is called and the returned value (which should be a table) is used as the entity. This lets you define custom construction behaviors (eg. to tie *sync.lua* with your own class system or entity-component system).
 
 ## Entity events
 
@@ -251,8 +251,18 @@ This method is called in the process of synchronizing entities, so it may be tha
 
 **Client and server.** Called when an instance of this entity will be destroyed. This is called after `:willDespawn` on the server, and after `:willLeave` on the client.
 
+## Relevance
+
+*Relevance* is a feature that lets a *sync.lua* server only send updates about some entities to a particular client rather than about all of them. This can significantly reduce bandwidth. For example, in a world-exploration game where players walk around exploring a world with trees, it may be that there are close to 2000 trees but only 10 of them are visible to each player at a time. This would reduce bandwidth usage and cpu usage for serialization (converting entity data to synchronization messages) by about 200x.
+
+### `Type.getRelevants(controller)`
+
+**Server-only.** Called by the server to ask a type which of its entities are relevant to a particular client. If defined, this method should return a table where the keys are the ids of the entities relevant to the client represented by `controller`. This could be more efficient than `Entity:isRelevant` if you have a fast way to query relevant entities (say using a spatial hash).
+
+If this method isn't implemented, `Entity:isRelevant` is used for the entities of this type if defined, else all entities of this type are deemed relevant to every client.
+
 ### `Entity:isRelevant(controller)`
 
-**Server-only.** Called by the server when it is synchronizing an entity to check if it is relevant to a particular client. `controller` is the controller for the client. If the event returns `false`, the entity is deemed irrelevant to the client and not synchronized to it (or removed from the client if it's on the client at this moment).
+**Server-only.** Called by the server when it is synchronizing an entity to check if it is relevant to a particular client. `controller` is the controller for the client. If the event returns `false`, the entity is deemed irrelevant to the client and not synchronized to it (or removed from the client if it's on the client at this moment). If the return value of this method would go from `false` to `true`, you need to call `Server:sync` on the entity to mark it as needing to be considered for synchronization again.
 
-If this event isn't implemented, it's assumed to always return `true`. 
+If both this method and `Type.getRelevants` are unimplemented for a type of entity, all entities of that type of entity are deemed relevant to every client.
