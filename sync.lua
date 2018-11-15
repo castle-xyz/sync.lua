@@ -10,9 +10,10 @@ local pairs, next, type = pairs, next, type
 
 local CLOCK_SYNC_PERIOD = 1 -- Seconds between clock sync attempts
 
-local MAX_SYNC_CHANNEL = 199 -- Use channels (0-199) for syncs
-local CLOCK_SYNC_CHANNEL = 200
-local MAX_CHANNEL = 200
+-- 3 chanenls for syncs, 1 for clock syncs
+local MAX_SYNC_CHANNEL = 2
+local CLOCK_SYNC_CHANNEL = MAX_SYNC_CHANNEL + 1
+local MAX_CHANNEL = CLOCK_SYNC_CHANNEL
 
 local SYNC_LEAVE = 1 -- Sentinel to sync entity leaving -- single byte when bitser'd
 
