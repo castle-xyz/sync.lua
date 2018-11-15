@@ -253,7 +253,7 @@ This method is called in the process of synchronizing entities, so it may be tha
 
 ## Relevance
 
-*Relevance* is a feature that lets a *sync.lua* server only send updates about some entities to a particular client rather than about all of them. This can significantly improve performance. For example, in a world-exploration game where players walk around exploring a world with trees, it may be that there are close to 2000 trees but only 10 of them are visible to each player at a time. This would reduce bandwidth usage and cpu usage for serialization (converting entity data to synchronization messages) by about 200x.
+*Relevance* is a feature that lets a *sync.lua* server only send updates about some entities to a particular client rather than about all of them. This can significantly improve performance. For example, in a world-exploration game where players walk around exploring a world with trees, it may be that there are close to 2000 trees but only 10 of them are visible to each player at a time. Marking only visible trees as relevant would reduce bandwidth usage and cpu usage for serialization (converting entity data to synchronization messages) by about 200x.
 
 ### `Type.getRelevants(controller)`
 
