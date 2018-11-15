@@ -78,11 +78,11 @@ Returns the `Client` instance created, which supports methods prefixed with `Cli
 
 ### `Common.isServer`
 
-Is `true` for server instances and `false` for client instances.
+Whether this instance is a server.
 
 ### `Common.isClient`
 
-Is `true` for client instances and `false` for server instances.
+Whether this instance is a client.
 
 ## Disconnecting
 
