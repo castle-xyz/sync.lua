@@ -76,6 +76,14 @@ Creates a new *sync.lua* client instance.
 
 Returns the `Client` instance created, which supports methods prefixed with `Client:` or `Common:` below.
 
+### `Common.isServer`
+
+Is `true` for server instances and `false` for client instances.
+
+### `Common.isClient`
+
+Is `true` for client instances and `false` for server instances.
+
 ## Disconnecting
 
 ### `Client:disconnect()`
@@ -277,6 +285,26 @@ This method is called in the process of synchronizing entities, so it may be tha
 ### `Entity:willDestruct()`
 
 **Client and server.** Called when an instance of this entity will be destroyed. This is called after `:willDespawn` on the server, and after `:willLeave` on the client.
+
+## Entity fields
+
+*sync.lua* stores the following fields in entities on construction. They are mostly useful as `self.<fieldname>` in entity methods. So, for example, `self.__mgr:spawn('Smoke')` to have a chimney entity spawn some smoke.
+
+### `Entity.__id`
+
+A number, which is the id of this entity.
+
+### `Entity.__mgr`
+
+The `Server` or `Client` that contains this entity. So, you can call all the `Server:` / `Client:` / `Common:` methods above on it, depending on whether this entity is the main instance on the server or a replica on the client.
+
+### `Entity.__local`
+
+A table of values that is **not synchronized**. This allows you to store some unsynchronizable values (such as a `love.physics.Body` reference) in an entity, or keep values that the client doesn't need to see to save bandwidth.
+
+### `Entity.__typeId`
+
+A number identifying the type of the entity, used internally by *sync.lua*.
 
 ## Relevance
 
