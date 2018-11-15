@@ -82,6 +82,14 @@ Returns the `Client` instance created, which supports methods prefixed with `Cli
 
 Disconnect from the server this client is connected to.
 
+#### Arguments
+
+None.
+
+#### Returns
+
+Nothing.
+
 ## Spawning and despawning entities
 
 ### `Server:spawn(typeName, ...)`
