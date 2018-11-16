@@ -68,13 +68,6 @@ local function keyEvent(key)
     end
 end
 
-function love.load()
-    if CASTLE_SERVER then
-        print("SERVER")
-        server = sync.newServer { address = '*:22122', controllerTypeName = 'Controller' }
-    end
-end
-
 function love.keypressed(key)
     if key == '1' then
         server = sync.newServer { address = '*:22122', controllerTypeName = 'Controller' }
