@@ -27,15 +27,16 @@ end
 local pool = {}
 
 local function getFromPool()
-    return table.remove(pool) or {}
+    return {}
+--    return table.remove(pool) or {}
 end
 
 local function releaseToPool(t, ...)
-    if t then
-        clearTable(t)
-        table.insert(pool, t)
-        releaseToPool(...)
-    end
+--    if t then
+--        clearTable(t)
+--        table.insert(pool, t)
+--        releaseToPool(...)
+--    end
 end
 
 
@@ -393,7 +394,8 @@ function Common:applyReceivedSyncs()
             appliable[id] = sync
         end
     end
-    clearTable(self.incomingSyncDumps)
+    self.incomingSyncDumps = {}
+--    clearTable(self.incomingSyncDumps)
 
     -- Destruct leavers
     for id, ent in pairs(leavers) do
@@ -563,8 +565,8 @@ end
 
 function Server:processSyncs()
     self:sendSyncs(nil, self.syncsPerType)
-    for _, syncs in pairs(self.syncsPerType) do
-        clearTable(syncs)
+    for k in pairs(self.syncsPerType) do
+        self.syncsPerType[k] = {}
     end
 end
 
