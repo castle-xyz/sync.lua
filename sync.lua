@@ -3,6 +3,11 @@ local sync = {}
 
 local enet = require 'enet'
 local bitser = require 'bitser'
+local marshal = require 'marshal'
+
+
+--local encode, decode = bitser.dumps, bitser.loads
+local encode, decode = marshal.encode, marshal.decode
 
 
 local pairs, next, type = pairs, next, type
@@ -143,7 +148,7 @@ function Client:init(options)
     self.serverPeer = self.host:connect(options.address, MAX_CHANNEL + 1)
     self.controller = nil
 
-    self.incomingSyncDumps = {} -- `ent.__id` -> `bitser.dumps(sync)` or `SYNC_LEAVE`
+    self.incomingSyncDumps = {} -- `ent.__id` -> `encode(sync)` or `SYNC_LEAVE`
     self.lastReceivedTimestamp = {}
 
     self.lastClockSyncTime = nil
@@ -168,11 +173,11 @@ local function defRpc(name)
 end
 
 local function rpcToData(name, ...)
-    return bitser.dumps({ rpcNameToId[name], select('#', ...), ... })
+    return encode({ rpcNameToId[name], select('#', ...), ... })
 end
 
 local function dataToRpc(data)
-    local t = bitser.loads(data)
+    local t = decode(data)
     return assert(rpcIdToName[t[1]], "invalid rpc id"), unpack(t, 3, t[2] + 2)
 end
 
@@ -306,7 +311,7 @@ function Server:sendSyncs(peer, syncsPerType, channel)
                 local savedLocal = ent.__local
                 ent.__local = nil
                 ent.__mgr = nil
-                dump = bitser.dumps(ent) -- TODO(nikki): `:toSync` event
+                dump = encode(ent) -- TODO(nikki): `:toSync` event
                 ent.__local = savedLocal
                 ent.__mgr = self
             end
@@ -381,7 +386,7 @@ function Common:applyReceivedSyncs()
     local leavers = getFromPool() -- `ent.__id` -> `ent` for entities that left
     local appliable = getFromPool() -- `id` -> `sync` for non-leaving syncs
     for id, row in pairs(self.incomingSyncDumps) do
-        local sync = type(row.dump) == 'string' and bitser.loads(row.dump) or row.dump
+        local sync = type(row.dump) == 'string' and decode(row.dump) or row.dump
         if type(sync) == 'table' then
             sync.__timestamp = row.timestamp
         end
