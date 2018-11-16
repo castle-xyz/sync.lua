@@ -58,6 +58,7 @@ Creates a new *sync.lua* server instance.
 - **`options` (table, required)**: A table of options:
   - **`options.address` (string, optional)**: If set, an address form `'<ipaddress>:<port>'`, `'<hostname>:<port>'` or `'*:<port>'` (the `'*'` form uses the default host for this computer). If not set, defaults to `'*:22122'`.
   - **`options.controllerTypeName` (string, required)**: Should be the name of the type used to instantiate controller entities for clients that connect to this server.
+  - **`options.disableCompression` (boolean, optional)**: Whether to disable compression for network data. Compression is enabled by default. It uses [ENet](http://enet.bespin.org/index.html)'s range coder, which was found to reduce bandwidth usage by about 70% in the examples included with *sync.lua*. Compression may have slight CPU overhead, so you may want to disable it if you don't need it. This setting *should be matched* in the options to [`sync.newClient`](#syncnewclientoptions) for clients that connect to this server.
 
 #### Returns
 
@@ -71,6 +72,7 @@ Creates a new *sync.lua* client instance.
 
 - **`options` (table, required)**: A table of options:
   - **`options.address` (string, required)**: An address of the form `'<ipaddress>:<port>'` or `'<hostname>:<port>'` to connect to.
+  - **`options.disableCompression` (boolean, optional)**: Whether to disable compression for network data. Compression is enabled by default. It uses [ENet](http://enet.bespin.org/index.html)'s range coder, which was found to reduce bandwidth usage by about 70% in the examples included with *sync.lua*. Compression may have slight CPU overhead, so you may want to disable it if you don't need it. This setting *should be matched* in the options to [`sync.newServer`](#syncnewserveroptions) for the server that this client connects to.
 
 #### Returns
 

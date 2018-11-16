@@ -110,7 +110,9 @@ function Server:init(options)
         "server needs `options.controllerTypeName`")
 
     self.host = enet.host_create(options.address or '*:22122', 64, MAX_CHANNEL + 1)
-    self.host:compress_with_range_coder()
+    if options.disableCompression ~= true then
+        self.host:compress_with_range_coder()
+    end
     if not self.host then
         error("couldn't create server, port may already be in use")
     end
@@ -134,7 +136,9 @@ function Client:init(options)
     self.isServer, self.isClient = false, true
 
     self.host = enet.host_create()
-    self.host:compress_with_range_coder()
+    if options.disableCompression ~= true then
+        self.host:compress_with_range_coder()
+    end
 
     self.serverPeer = self.host:connect(options.address, MAX_CHANNEL + 1)
     self.controller = nil
