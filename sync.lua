@@ -302,9 +302,7 @@ function Server:sendSyncs(peer, syncsPerType, channel)
                 local savedLocal = ent.__local
                 ent.__local = nil
                 ent.__mgr = nil
-                for i = 1, 200 do
-                    dump = encode(ent) -- TODO(nikki): `:toSync` event
-                end
+                dump = encode(ent) -- TODO(nikki): `:toSync` event
                 ent.__local = savedLocal
                 ent.__mgr = self
             end
