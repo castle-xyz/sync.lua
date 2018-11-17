@@ -106,6 +106,8 @@ Nothing.
 
 Create an entity of the given type. Automatically synchronizes the entity to all connected clients for which the entity is relevant (the actual synchronization is sent on the next `:process` call).
 
+This method is also actually available in clients but does nothing, so that you can call it in common code without error.
+
 #### Arguments
 
 - **`typeName` (string, required)**: The name of the type of entity to spawn.
@@ -119,6 +121,8 @@ Create an entity of the given type. Automatically synchronizes the entity to all
 ### `Server:despawn(entOrId)`
 
 Destroy an entity. Automatically removes the entity from all connected clients for which the entity is relevant (the actual synchronization is sent on the next `:process` call).
+
+This method is also actually available in clients but does nothing, so that you can call it in common code without error.
 
 #### Arguments
 
@@ -168,11 +172,11 @@ Returns a table of all the entities of the named type, where the keys are the id
 
 ## Synchronizing entities
 
-### `Common:sync(entOrId)`
+### `Server:sync(entOrId)`
 
 Mark an entity as needing synchronization. On server instances the state of the entity is sent to all clients for which the entity is relevant (the actual synchronization is sent on the next `:process` call). Typically this needs to be called on an entity when any of its members change that clients need to be aware of, or if its return value for `:isRelevant` may have changed for any controller.
 
-The method can also be called on client instances but does nothing. This is so you can call `:sync` in common code without causing an error. 
+This method is also actually available in clients but does nothing, so that you can call it in common code without error.
 
 #### Arguments
 
@@ -268,9 +272,9 @@ When you call `Server:spawn(typeName, ...)` or when clients need to replicate a 
 
 ### `Entity:willSync(data, dt)`
 
-**Client-only.** Called when an entity is receiving new synchronization data from a server. `data` contains all the members of the entity on the server. So, for example, if you updated `self.x` and `self.y` on the server, they would be `data.x` and `data.y`. `dt` is the time in seconds that elapsed since this snapshot was recorded on the server. `dt` is provided because the snapshot usually takes time to travel over the network. This way you could predict the correct values to use locally (eg. `self.x = data.x + data.vx * dt` to set X-axis position based on X-axis velocity).
+**Client-only.** Called when an entity is receiving new synchronization data from a server. `data` contains all the members of the entity on the server. So, for example, if you updated `self.x` and `self.y` on the server, they would be `data.x` and `data.y`. `dt` is the time in seconds that elapsed since this snapshot was recorded on the server. `dt` is provided because the snapshot usually takes time to travel over the network. You could edit `data`, and those will be the new values applied to `self` instead. This way you could predict the correct values to use locally (eg. `data.x = data.x + data.vx * dt` to set X-axis position based on X-axis velocity).
 
-You can use this method to customize how an entity is synchronized. If you return `false` from this method, it skips the default synchronization logic (which just overwrites all members with the new data).
+If you return `false` from this method, it skips the default synchronization logic entirely and you could set members of `self` on your own or not do anything.
 
 This method is called on entities one by one, so it may be that the data of other entities is still old or doesn't exist yet (hasn't been synchronized yet). Say a `Player` instance spawns an axe and sets `self.axeId` in one frame on the server. In the client, it may be that `:willSync` is called on the `Player` first and the axe isn't constructed yet. It would be constructed by the time the current `Client:process` call finishes. If you just want to be notified when synchronization has happened, use [`:didSync`](#entitydidsync) instead, which makes sure all other entities have been synchronized too. `:willSync` is meant to be used when you want to customize how synchronization data is applied.
 
