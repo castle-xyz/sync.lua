@@ -502,7 +502,7 @@ end
 
 -- Top-level drawing
 
-local fpsGraph, pingGraph = Graph.new(), Graph.new()
+local fpsGraph, pingGraph = Graph.new(500), Graph.new(500)
 
 local effect = moonshine(moonshine.effects.glow).chain(moonshine.effects.vignette)
 effect.glow.strength = 1.6
