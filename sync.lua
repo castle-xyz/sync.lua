@@ -23,27 +23,6 @@ local MAX_CHANNEL = CLOCK_SYNC_CHANNEL
 local SYNC_LEAVE = 1 -- Sentinel to sync entity leaving -- single byte when bitser'd
 
 
--- Utilities to reduce GC trashing
-
-local function clearTable(t)
-    for k in pairs(t) do t[k] = nil end
-end
-
-local pool = {}
-
-local function getFromPool()
-    return table.remove(pool) or {}
-end
-
-local function releaseToPool(t, ...)
-    if t then
-        clearTable(t)
-        table.insert(pool, t)
-        releaseToPool(...)
-    end
-end
-
-
 -- Ids
 
 local idCounter = 0
@@ -125,9 +104,7 @@ function Server:init(options)
     self.controllers = {} -- `peer` -> controller
 
     self.syncsPerType = {} -- `ent.__typeName` -> `ent.__id` -> (`ent` or `SYNC_LEAVE`)
-    for typeName in pairs(typeNameToType) do
-        self.syncsPerType[typeName] = {}
-    end
+    self:clearSyncs()
     self.peerHasPerType = {} -- `peer` -> `ent.__typeName` -> `ent.__id` -> `true` for all on `peer`
 
     self.nextSyncChannel = 0
@@ -288,6 +265,12 @@ end
 function Client:sync(entOrId)
 end
 
+function Server:clearSyncs()
+    for typeName in pairs(typeNameToType) do
+        self.syncsPerType[typeName] = {}
+    end
+end
+
 function Server:sendSyncs(peer, syncsPerType, channel)
     if not next(syncsPerType) then -- Empty?
         return
@@ -300,7 +283,7 @@ function Server:sendSyncs(peer, syncsPerType, channel)
     end
 
     -- Memoized function to dump so we only serialize each required entity once
-    local allDumps = getFromPool()
+    local allDumps = {}
     local function getDump(id)
         local dump = allDumps[id]
         if dump == nil then
@@ -324,7 +307,7 @@ function Server:sendSyncs(peer, syncsPerType, channel)
     local timestamp = love.timer.getTime()
     local controllers = peer and { [peer] = self.controllers[peer] } or self.controllers
     for peer, controller in pairs(controllers) do
-        local dumps = getFromPool()
+        local dumps = {}
         for typeName, syncs in pairs(syncsPerType) do
             local has = self.peerHasPerType[peer][typeName]
             local ty = typeNameToType[typeName]
@@ -356,10 +339,7 @@ function Server:sendSyncs(peer, syncsPerType, channel)
         if next(dumps) then -- Non-empty?
             peer:send(rpcToData('receiveSyncDumps', dumps, timestamp), channel)
         end
-        releaseToPool(dumps)
     end
-
-    releaseToPool(allDumps)
 end
 
 defRpc('receiveSyncDumps')
@@ -383,8 +363,8 @@ function Common:applyReceivedSyncs()
     end
 
     -- Deserialize syncs and notify leavers
-    local leavers = getFromPool() -- `ent.__id` -> `ent` for entities that left
-    local appliable = getFromPool() -- `id` -> `sync` for non-leaving syncs
+    local leavers = {} -- `ent.__id` -> `ent` for entities that left
+    local appliable = {} -- `id` -> `sync` for non-leaving syncs
     for id, row in pairs(self.incomingSyncDumps) do
         local sync = type(row.dump) == 'string' and decode(row.dump) or row.dump
         if type(sync) == 'table' then
@@ -402,7 +382,7 @@ function Common:applyReceivedSyncs()
             appliable[id] = sync
         end
     end
-    clearTable(self.incomingSyncDumps)
+    self.incomingSyncDumps = {}
 
     -- Destruct leavers
     for id, ent in pairs(leavers) do
@@ -411,7 +391,7 @@ function Common:applyReceivedSyncs()
 
     -- Apply syncs then notify
     local time = self:getTime()
-    local synced, enterers = getFromPool(), getFromPool()
+    local synced, enterers = {}, {}
     for id, sync in pairs(appliable) do
         local ent = self.all[id]
         if not ent then -- Entered -- construct and remember to notify later
@@ -449,8 +429,6 @@ function Common:applyReceivedSyncs()
             ent:didSync()
         end
     end
-
-    releaseToPool(leavers, appliable, synced, enterers)
 end
 
 
@@ -572,9 +550,7 @@ end
 
 function Server:processSyncs()
     self:sendSyncs(nil, self.syncsPerType)
-    for _, syncs in pairs(self.syncsPerType) do
-        clearTable(syncs)
-    end
+    self:clearSyncs()
 end
 
 function Client:processSyncs()
