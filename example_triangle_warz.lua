@@ -339,6 +339,14 @@ end
 
 local server, client
 
+function castle.startserver(address, metadata)
+    print('triangle_warz client', address, metadata)
+end
+
+function castle.startclient(address, metadata)
+    print('triangle_warz client', address, metadata)
+end
+
 function love.update(dt)
     -- Key events sent from mobile app
     if MOBILE then
