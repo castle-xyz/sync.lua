@@ -7,7 +7,7 @@ local moonshine = require 'https://raw.githubusercontent.com/nikki93/moonshine/9
 
 -- 'Globals'
 
-local SERVER_ADDRESS = '207.254.45.246'
+local SERVER_ADDRESS = '127.0.0.1'
 
 local W, H = 800, 600 -- Game world size
 
@@ -339,12 +339,14 @@ end
 
 local server, client
 
-function castle.startserver(address, metadata)
-    print('triangle_warz client', address, metadata)
-end
+if castle then
+    function castle.startserver(address, metadata)
+        print('triangle_warz client', address, metadata)
+    end
 
-function castle.startclient(address, metadata)
-    print('triangle_warz client', address, metadata)
+    function castle.startclient(address, metadata)
+        print('triangle_warz client', address, metadata)
+    end
 end
 
 function love.update(dt)
