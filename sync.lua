@@ -414,7 +414,7 @@ function Common:applyReceivedSyncs()
         end
         local defaultSyncBehavior = true
         if ent.willSync then -- Notify `:willSync` and check if it asks us to skip default syncing
-            defaultSyncBehavior = ent:willSync(sync, math.max(0.15, time - sync.__timestamp))
+            defaultSyncBehavior = ent:willSync(sync, math.min(0.15, time - sync.__timestamp))
         end
         if defaultSyncBehavior ~= false then -- Just copy members by default
             local savedLocal = ent.__local
