@@ -462,8 +462,47 @@ function love.keyreleased(k)
 end
 
 
+-- Graph
+
+local Graph = {}
+
+function Graph.new(numSamples)
+    local self = setmetatable({}, { __index = Graph })
+    self.samples = {}
+    for i = 1, numSamples or 300 do
+        self.samples[i] = 0
+    end
+    return self
+end
+
+function Graph:draw(x, y, xSize, ySize, r, g, b)
+    love.graphics.push('all')
+    love.graphics.setColor(r or 1, g or 1, b or 1)
+    love.graphics.translate(x or 0, y or 0)
+    love.graphics.scale(xSize or 30, ySize or xSize or 30)
+    local samples = self.samples
+    local max, min = math.max(unpack(self.samples)), math.min(unpack(self.samples)) - 5
+    local yScale = max - min == 0 and 1 or 1 / (max - min)
+    for i = 2, #samples do
+        love.graphics.polygon(
+            'fill',
+            (i - 1) / #samples, 1 - yScale * (samples[i - 1] - min),
+            i / #samples, 1 - yScale * (samples[i] - min),
+            i / #samples, 1,
+            (i - 1) / #samples, 1)
+    end
+    love.graphics.pop()
+end
+
+function Graph:sample(s)
+    table.remove(self.samples, 1)
+    table.insert(self.samples, s)
+end
+
 
 -- Top-level drawing
+
+local fpsGraph, pingGraph = Graph.new(), Graph.new()
 
 local effect = moonshine(moonshine.effects.glow).chain(moonshine.effects.vignette)
 effect.glow.strength = 1.6
@@ -526,9 +565,13 @@ function love.draw()
                     end
                 end)
 
-                -- Draw fps and latency
-                love.graphics.print('fps:  ' .. love.timer.getFPS(), 20, H - 52)
-                love.graphics.print('ping: ' .. client.serverPeer:round_trip_time(), 20, H - 36)
+                -- Draw fps and ping
+                love.graphics.print('fps:  ' .. love.timer.getFPS(), 20, H - 36)
+                fpsGraph:sample(love.timer.getFPS())
+                fpsGraph:draw(20, H - 70)
+                love.graphics.print('ping: ' .. client.serverPeer:round_trip_time(), 78, H - 36)
+                pingGraph:sample(client.serverPeer:round_trip_time())
+                pingGraph:draw(78, H - 70)
             elseif client and client.serverPeer:state() == 'disconnected' then -- Disconnected
                 love.graphics.print('disconnected, pres ENTER to reconnect', 20, 20)
             else -- Didn't connect yet
