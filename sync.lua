@@ -1,17 +1,25 @@
 local sync = {}
 
 
+-- Libraries
+
 local enet = require 'enet'
-local bitser = require 'bitser'
-local marshal = require 'marshal'
-
-
---local encode, decode = bitser.dumps, bitser.loads
-local encode, decode = marshal.encode, marshal.decode
-
 
 local pairs, next, type = pairs, next, type
 
+local encode, decode -- Pick serialization functions
+do
+    local marshal = require 'marshal'
+    if marshal then
+        encode, decode = marshal.encode, marshal.decode
+    else
+        local bitser = require 'bitser'
+        encode, decode = bitser.dumps, bitser.loads
+    end
+end
+
+
+-- Constants
 
 local CLOCK_SYNC_PERIOD = 1 -- Seconds between clock sync attempts
 
@@ -294,7 +302,9 @@ function Server:sendSyncs(peer, syncsPerType, channel)
                 local savedLocal = ent.__local
                 ent.__local = nil
                 ent.__mgr = nil
-                dump = encode(ent) -- TODO(nikki): `:toSync` event
+                for i = 1, 200 do
+                    dump = encode(ent) -- TODO(nikki): `:toSync` event
+                end
                 ent.__local = savedLocal
                 ent.__mgr = self
             end

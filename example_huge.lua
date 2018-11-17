@@ -6,7 +6,7 @@ local shash = require 'https://raw.githubusercontent.com/rxi/shash/7e2bbef0193e9
 
 -- 'Globals'
 
-local SERVER_ADDRESS = '207.254.45.246'
+local SERVER_ADDRESS = '192.168.1.80'
 
 local WORLD_MULT = 2
 local WORLD_SIZE = WORLD_MULT * 500
