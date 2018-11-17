@@ -55,6 +55,10 @@ function Triangle:didSpawn()
     self.score = 0
 end
 
+function Triangle:willSync(data, dt)
+    data.x, data.y = data.x + data.vx * dt, data.y + data.vy * dt
+end
+
 function Triangle:willDespawn()
     table.insert(availableTriangleColors, { self.r, self.g, self.b })
 end
@@ -200,6 +204,10 @@ function Bullet:didEnter()
     bulletSound:stop()
     bulletSound:play()
     self.__local.didPlaySound = true
+end
+
+function Bullet:willSync(data, dt)
+    data.x, data.y = data.x + 800 * data.dirX * dt, data.y + 800 * data.dirY * dt
 end
 
 function Bullet:update(dt)
