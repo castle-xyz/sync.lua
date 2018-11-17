@@ -13,7 +13,7 @@ do
     if marshal then
         encode, decode = marshal.encode, marshal.decode
     else
-        local bitser = require 'bitser'
+        local bitser = (function(s) return require(s) end)('bitser')
         encode, decode = bitser.dumps, bitser.loads
     end
 end
