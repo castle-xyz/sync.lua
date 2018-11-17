@@ -249,6 +249,9 @@ function Server:spawn(typeName, ...)
     return id, ent
 end
 
+function Client:spawn()
+end
+
 function Server:despawn(entOrId)
     local ent = type(entOrId) == 'table' and entOrId or self:getById(entOrId)
     if ent.__despawned then
@@ -260,6 +263,9 @@ function Server:despawn(entOrId)
     ent.__despawned = true
     self:sync(ent)
     self:destruct(ent)
+end
+
+function Client:despawn()
 end
 
 

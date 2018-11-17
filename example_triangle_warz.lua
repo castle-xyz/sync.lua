@@ -379,10 +379,10 @@ function love.update(dt)
         end
     end
 
-    -- Update explosions on client (particle systems are local)
+    -- Do predictive updates on client
     if client then
         for _, ent in pairs(client:getAll()) do
-            if ent.__typeName == 'Explosion' then
+            if ent.update then
                 ent:update(dt)
             end
         end
