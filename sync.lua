@@ -9,8 +9,8 @@ local pairs, next, type = pairs, next, type
 
 local encode, decode -- Pick serialization functions
 do
-    local marshal = require 'marshal'
-    if marshal then
+    local hasMarshal, marshal = pcall(require, 'marshal')
+    if hasMarshal then
         encode, decode = marshal.encode, marshal.decode
     else
         local bitser = (function(s) return require(s) end)('bitser')
