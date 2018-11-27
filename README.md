@@ -1,3 +1,7 @@
+# Development PAUSED
+
+**NOTE**: Development on this library has been paused, and efforts have shifted to a [new way of doing things](https://github.com/expo/share.lua). This was done after receiving some feedback from users using *sync.lua* about not being a fan of its OOP-y structure and of the lack of clarity in server vs. client code separation. The new library addresses these issues head-on. Stay posted!
+
 <p align="center"><img src="./preview_triangle_warz.gif"></p>
 
 # sync.lua
